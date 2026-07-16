@@ -1,0 +1,782 @@
+/* RideSync Dispatch Dashboard - Modern Stylesheet */
+
+/* --- Theme Variables & Design Tokens --- */
+:root {
+  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  
+  /* Color Palette - Clean Flat Design */
+  --bg-page: #f8fafc;
+  --bg-card: #ffffff;
+  --border-color: #e2e8f0;
+  --border-color-hover: #cbd5e1;
+  
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #64748b;
+  
+  /* Brand/Status Accents */
+  --accent-color: #3b82f6;      /* Blue primary */
+  --accent-color-hover: #2563eb;
+  
+  --color-available: #10b981;   /* Emerald green */
+  --color-busy: #94a3b8;        /* Slate gray */
+  --color-rider: #f43f5e;       /* Rose pink */
+  --color-surge: #f59e0b;       /* Amber orange */
+  --color-surge-light: rgba(245, 158, 11, 0.12);
+  
+  /* Box Shadow */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -4px rgba(0, 0, 0, 0.05);
+  
+  /* Map grid size (can be modified dynamically in JS) */
+  --grid-columns: 12;
+  --grid-rows: 12;
+  
+  --transition-speed: 0.3s;
+}
+
+/* --- Base Reset & General --- */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-family);
+  background-color: var(--bg-page);
+  color: var(--text-primary);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  padding-bottom: 2rem;
+}
+
+h1, h2, h3, h4 {
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+button, input, select {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+/* --- Layout Container --- */
+.container {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 1.5rem 1.5rem 0 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* --- Header & Settings Panel --- */
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.brand-section {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.brand-logo {
+  width: 2.25rem;
+  height: 2.25rem;
+  background-color: var(--text-primary);
+  border-radius: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+}
+
+.brand-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.brand-subtitle {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.controls-section {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+/* Connection Status Badge */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  padding: 0.375rem 0.75rem;
+  border-radius: 9999px;
+  background-color: #fee2e2;
+  color: #ef4444;
+  border: 1px solid #fecaca;
+  transition: all var(--transition-speed) ease;
+}
+
+.status-badge.connected {
+  background-color: #d1fae5;
+  color: #065f46;
+  border-color: #a7f3d0;
+}
+
+.status-badge.simulated {
+  background-color: #dbeafe;
+  color: #1e40af;
+  border-color: #bfdbfe;
+}
+
+.status-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background-color: currentColor;
+  animation: pulse 1.5s infinite ease-in-out;
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 0.375rem;
+  font-weight: 500;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all var(--transition-speed) ease;
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-card);
+  color: var(--text-secondary);
+}
+
+.btn:hover {
+  background-color: #f1f5f9;
+  color: var(--text-primary);
+}
+
+.btn-primary {
+  background-color: var(--accent-color);
+  border-color: var(--accent-color);
+  color: white;
+}
+
+.btn-primary:hover {
+  background-color: var(--accent-color-hover);
+  color: white;
+}
+
+/* --- Dashboard Grid Panels --- */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+}
+
+@media (min-width: 1024px) {
+  .dashboard-grid {
+    grid-template-columns: 3fr 1.2fr;
+  }
+}
+
+.main-column {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* --- Stats Row --- */
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+}
+
+@media (min-width: 640px) {
+  .stats-row {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.stat-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 0.75rem;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  transition: border-color var(--transition-speed) ease, box-shadow var(--transition-speed) ease;
+}
+
+.stat-card:hover {
+  border-color: var(--border-color-hover);
+}
+
+.stat-label {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  text-transform: capitalize;
+}
+
+.stat-value {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+/* Color highlights for cards */
+.stat-card.surge-highlight.active {
+  background-color: var(--color-surge-light);
+  border-color: rgba(245, 158, 11, 0.4);
+}
+
+.stat-card.surge-highlight.active .stat-value {
+  color: #b45309;
+}
+
+/* --- Settings Dropdown Drawer --- */
+.settings-drawer {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 0.75rem;
+  padding: 1.25rem;
+  display: none;
+  flex-direction: column;
+  gap: 1rem;
+  animation: slideDown 0.25s ease-out;
+}
+
+.settings-drawer.open {
+  display: flex;
+}
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.form-group label {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.form-group input, .form-group select {
+  padding: 0.5rem;
+  border-radius: 0.375rem;
+  border: 1px solid var(--border-color);
+  outline: none;
+  font-size: 0.875rem;
+  background-color: var(--bg-page);
+  color: var(--text-primary);
+}
+
+.form-group input:focus, .form-group select:focus {
+  border-color: var(--accent-color);
+  background-color: var(--bg-card);
+}
+
+/* --- Map Viewport Panel --- */
+.map-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 0.75rem;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.map-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.map-legend {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.legend-color {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 50%;
+}
+
+.legend-color.available { background-color: var(--color-available); }
+.legend-color.busy { background-color: var(--color-busy); }
+.legend-color.rider { background-color: var(--color-rider); }
+.legend-color.surge {
+  background-color: var(--color-surge-light);
+  border: 1px dashed var(--color-surge);
+}
+
+/* Map Grid Outer Box */
+.map-canvas-container {
+  width: 100%;
+  aspect-ratio: 1; /* Keep it strictly square */
+  position: relative;
+  background-color: #cbd5e1; /* Street concrete gray background */
+  border: 1px solid var(--border-color);
+  border-radius: 0.5rem;
+  overflow: hidden;
+  box-shadow: inset 0 2px 5px rgba(15, 23, 42, 0.08);
+}
+
+/* Connection Error State overlay */
+.map-error-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(248, 250, 252, 0.9);
+  backdrop-filter: blur(4px);
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+  padding: 2rem;
+  text-align: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.map-error-overlay.visible {
+  opacity: 1;
+  pointer-events: all;
+}
+
+.error-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #b91c1c;
+}
+
+.error-message {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  max-width: 320px;
+}
+
+/* Grid drawing - Styled as road lines */
+.grid-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  background-size: calc(100% / (var(--grid-columns) - 1)) calc(100% / (var(--grid-rows) - 1));
+  background-image: 
+    linear-gradient(to right, rgba(255, 255, 255, 0.55) 2px, transparent 2px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.55) 2px, transparent 2px);
+  /* Yellow dashes effect on road centerlines */
+  border: none;
+  z-index: 2; /* Sits above blocks, below vehicles */
+}
+
+/* Grid Labels */
+.grid-label-x, .grid-label-y {
+  position: absolute;
+  font-size: 0.625rem;
+  font-weight: 600;
+  color: #64748b;
+  pointer-events: none;
+  z-index: 12;
+}
+
+/* City Blocks - Manhattan Style Grid */
+.city-block {
+  position: absolute;
+  background-color: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05), inset 0 1px 1px rgba(255, 255, 255, 0.8);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 1;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.city-block.park {
+  background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
+  border-color: #86efac;
+}
+
+.city-block.water {
+  background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%);
+  border-color: #7dd3fc;
+}
+
+.city-block.commercial {
+  background-color: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.city-block.residential {
+  background-color: #fcfcfd;
+  border-color: #e2e8f0;
+}
+
+.city-block-label {
+  font-size: 0.5rem;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.8;
+  text-align: center;
+  padding: 0.25rem;
+}
+
+/* --- Map Elements --- */
+
+/* Surge Zones */
+.surge-overlay {
+  position: absolute;
+  background-color: var(--color-surge-light);
+  border: 1px dashed var(--color-surge);
+  border-radius: 0.25rem;
+  pointer-events: none;
+  animation: pulse-border 2s infinite ease-in-out;
+  transition: all 0.5s ease-in-out;
+}
+
+/* Drivers (Cars) */
+.driver-marker {
+  position: absolute;
+  width: 2.25rem;
+  height: 2.25rem;
+  margin-left: -1.125rem; /* Centering offsets */
+  margin-top: -1.125rem;
+  cursor: pointer;
+  z-index: 5;
+  transition: left 1s ease-in-out, top 1s ease-in-out, transform 1s ease-in-out;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.driver-marker svg {
+  width: 2.25rem;
+  height: 2.25rem;
+  filter: drop-shadow(0 3px 5px rgba(15, 23, 42, 0.25));
+  transition: transform var(--transition-speed) ease;
+}
+
+/* Color logic for the new car SVG using currentColor */
+.driver-marker.available {
+  color: var(--color-available);
+}
+
+.driver-marker.busy {
+  color: var(--color-busy);
+}
+
+.driver-marker:hover svg {
+  transform: scale(1.2);
+}
+
+/* Riders (Pins) */
+.rider-marker {
+  position: absolute;
+  width: 2rem;
+  height: 2rem;
+  margin-left: -1rem;
+  margin-top: -1.75rem; /* Anchor at pin tip */
+  pointer-events: none;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: bouncePin 1.5s infinite ease-in-out;
+  transition: left 0.5s ease-in-out, top 0.5s ease-in-out;
+}
+
+.rider-marker svg {
+  width: 2rem;
+  height: 2rem;
+  fill: var(--color-rider);
+  filter: drop-shadow(0 4px 6px rgba(0,0,0,0.2));
+}
+
+/* Pin shadow pulse effect */
+.rider-shadow {
+  position: absolute;
+  width: 0.5rem;
+  height: 0.125rem;
+  background-color: rgba(0,0,0,0.15);
+  border-radius: 50%;
+  margin-left: -0.25rem;
+  bottom: -0.125rem;
+  z-index: 3;
+  animation: pulseShadow 1.5s infinite ease-in-out;
+}
+
+/* Map Popovers / Tooltips */
+.map-tooltip {
+  position: absolute;
+  background: white;
+  border: 1px solid var(--border-color);
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+  min-width: 160px;
+  box-shadow: var(--shadow-lg);
+  font-size: 0.75rem;
+  z-index: 100;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(5px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.map-tooltip.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.tooltip-header {
+  font-weight: 600;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 0.25rem;
+  margin-bottom: 0.25rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.tooltip-row {
+  display: flex;
+  justify-content: space-between;
+}
+
+.tooltip-label {
+  color: var(--text-muted);
+}
+
+.tooltip-value {
+  font-weight: 500;
+}
+
+/* --- Live Activity Feed Side Panel --- */
+.feed-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 0.75rem;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  box-shadow: var(--shadow-sm);
+  height: 100%;
+  max-height: 700px;
+}
+
+.feed-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.feed-title {
+  font-size: 1.125rem;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.feed-container {
+  overflow-y: auto;
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding-right: 0.25rem;
+}
+
+/* Activity Feed Card Item */
+.feed-item {
+  background: #f8fafc;
+  border: 1px solid var(--border-color);
+  border-radius: 0.5rem;
+  padding: 0.875rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.feed-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.match-info {
+  font-weight: 600;
+  font-size: 0.875rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.match-arrow {
+  color: var(--text-muted);
+}
+
+.match-timestamp {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.feed-item-details {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.8125rem;
+}
+
+.match-eta {
+  color: var(--text-secondary);
+}
+
+.match-fare {
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.surge-badge {
+  background-color: var(--color-surge-light);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  color: #b45309;
+  font-size: 0.6875rem;
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+  font-weight: 600;
+}
+
+/* --- Animations --- */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+@keyframes pulse-border {
+  0%, 100% {
+    border-color: var(--color-surge);
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.3);
+  }
+  50% {
+    border-color: rgba(245, 158, 11, 0.4);
+    box-shadow: 0 0 8px 2px rgba(245, 158, 11, 0.15);
+  }
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-15px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes bouncePin {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes pulseShadow {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.15;
+  }
+  50% {
+    transform: scale(0.6);
+    opacity: 0.05;
+  }
+}
+
+/* Scrollbar Customization for Feed Panel */
+.feed-container::-webkit-scrollbar {
+  width: 4px;
+}
+
+.feed-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.feed-container::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 2px;
+}
+
+.feed-container::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
