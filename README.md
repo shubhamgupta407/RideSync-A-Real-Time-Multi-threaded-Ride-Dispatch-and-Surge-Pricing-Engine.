@@ -10,21 +10,25 @@ Here's a quick look at how the system is structured:
 
 ```mermaid
 graph TD
+    classDef frontend fill:#3b82f6,stroke:#2563eb,stroke-width:2px,color:#fff,rx:8px
+    classDef backend fill:#10b981,stroke:#059669,stroke-width:2px,color:#fff,rx:8px
+    classDef thread fill:#f59e0b,stroke:#d97706,stroke-width:2px,color:#fff,rx:8px
+
     subgraph Frontend
-        UI[City Grid UI]
-        Feed[Live Activity Feed]
-        Stats[Stats Panel]
+        UI[City Grid UI]:::frontend
+        Feed[Live Activity Feed]:::frontend
+        Stats[Stats Panel]:::frontend
     end
 
     subgraph Backend
-        API[API Endpoint]
-        Match[Matching Engine]
-        Surge[Surge Pricing Module]
+        API[API Endpoint]:::backend
+        Match[Matching Engine]:::backend
+        Surge[Surge Pricing Module]:::backend
         
         subgraph Threads
-            T1[Driver Thread 1]
-            T2[Driver Thread 2]
-            T3[Driver Thread N]
+            T1[Driver Thread 1]:::thread
+            T2[Driver Thread 2]:::thread
+            T3[Driver Thread N]:::thread
         end
     end
 

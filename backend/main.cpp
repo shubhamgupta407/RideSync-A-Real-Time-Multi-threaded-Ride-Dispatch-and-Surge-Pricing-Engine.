@@ -13,6 +13,16 @@
 #include <cmath>
 #include <atomic>
 #include <map>
+#include <deque>
+
+// Use single-header libraries for HTTP and JSON
+#include "httplib.h"
+#include "json.hpp"
+
+using json = nlohmann::json;
+
+// Config option (set to false for bounded console runs)
+const bool RUN_INDEFINITELY = true;
 
 // Status Enum
 enum class DriverStatus {
@@ -28,38 +38,7 @@ struct Driver {
     DriverStatus status;
 };
 
-// Original Rider Struct (kept for compatibility)
-struct Rider {
-    std::string id;
-    int pickup_x;
-    int pickup_y;
-    int drop_x;
-    int drop_y;
-};
-
-// Mutexes
-std::mutex console_mutex;
-std::mutex driver_mutex;
-
-// Atomic flag for clean shutdown of all threads
-std::atomic<bool> simulation_running(true);
-
-// Helper to get current timestamp string safely
-std::string getCurrentTimestamp() {
-    auto now = std::chrono::system_clock::now();
-    std::time_t now_time = std::chrono::system_clock::to_time_t(now);
-    std::tm tm_struct;
-    localtime_r(&now_time, &tm_struct);
-    
-    std::ostringstream oss;
-    oss << std::put_time(&tm_struct, "%Y-%m-%d %H:%M:%S");
-    return oss.str();
-}
-
-// ------------------------------------------------------------------
-// Part A: Ride Request & Thread-Safe Queue
-// ------------------------------------------------------------------
-
+// RideRequest Struct
 struct RideRequest {
     std::string rider_id;
     int pickup_x;
@@ -69,13 +48,53 @@ struct RideRequest {
     std::string timestamp;
 };
 
-/*
- * (a) Why condition_variable avoids busy-waiting:
- * If a dispatcher thread repeatedly checks a while(!queue.empty()) loop, it will "busy-wait" 
- * and consume nearly 100% of a CPU core doing nothing but checking an empty queue. 
- * A std::condition_variable puts the thread completely to sleep (consuming 0% CPU) until 
- * another thread explicitly wakes it up (via notify_one) when new data is actually available.
- */
+// Match Record for JSON endpoint
+struct MatchRecord {
+    std::string driver_id;
+    std::string rider_id;
+    double eta_min;
+    double fare;
+    double surge_multiplier;
+    std::string timestamp;
+};
+
+// Mutexes & Shared State
+std::mutex console_mutex;
+std::mutex driver_mutex;
+std::mutex zone_mutex; 
+std::mutex pending_riders_mutex;
+std::mutex matches_mutex;
+
+std::map<int, int> pending_requests_per_zone;
+std::vector<RideRequest> pending_riders;
+std::deque<MatchRecord> recent_matches;
+std::atomic<int> rides_matched_total(0);
+std::atomic<bool> simulation_running(true);
+
+// Helper to get current timestamp
+std::string getCurrentTimestamp() {
+    auto now = std::chrono::system_clock::now();
+    std::time_t now_time = std::chrono::system_clock::to_time_t(now);
+    std::tm tm_struct;
+    localtime_r(&now_time, &tm_struct);
+    
+    std::ostringstream oss;
+    oss << std::put_time(&tm_struct, "%Y-%m-%dT%H:%M:%SZ"); // ISO 8601 format
+    return oss.str();
+}
+
+// Helper to determine zone
+int getZoneId(int x, int y, int grid_size = 10, int num_zones = 3) {
+    int zone_width = std::ceil((double)grid_size / num_zones);
+    int zx = x / zone_width;
+    int zy = y / zone_width;
+    return zy * num_zones + zx;
+}
+
+// ------------------------------------------------------------------
+// Part A: Ride Request & Thread-Safe Queue
+// ------------------------------------------------------------------
+
 class RequestQueue {
 private:
     std::queue<RideRequest> queue;
@@ -86,12 +105,17 @@ public:
     void push(const RideRequest& req) {
         std::lock_guard<std::mutex> lock(queue_mutex);
         queue.push(req);
-        queue_cv.notify_one(); // Wake up the dispatcher
+        
+        {
+            std::lock_guard<std::mutex> plock(pending_riders_mutex);
+            pending_riders.push_back(req);
+        }
+        
+        queue_cv.notify_one();
     }
 
     bool pop(RideRequest& req) {
         std::unique_lock<std::mutex> lock(queue_mutex);
-        // Wait until queue is not empty OR simulation is shutting down
         queue_cv.wait(lock, [this]() { return !queue.empty() || !simulation_running; });
         
         if (!simulation_running && queue.empty()) {
@@ -100,10 +124,21 @@ public:
 
         req = queue.front();
         queue.pop();
+        
+        {
+            // Safely remove popped request from our JSON view tracker
+            std::lock_guard<std::mutex> plock(pending_riders_mutex);
+            for (auto it = pending_riders.begin(); it != pending_riders.end(); ++it) {
+                if (it->rider_id == req.rider_id) {
+                    pending_riders.erase(it);
+                    break;
+                }
+            }
+        }
+        
         return true;
     }
     
-    // Wake up sleeping threads during shutdown
     void shutdown() {
         queue_cv.notify_all();
     }
@@ -111,17 +146,15 @@ public:
 
 RequestQueue ride_queue;
 
-// Rider simulation thread
 void simulateRider(int id, int grid_size) {
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_int_distribution<> grid_dist(0, grid_size - 1);
-    std::uniform_int_distribution<> time_dist(3000, 8000); // 3 to 8 seconds
+    std::uniform_int_distribution<> time_dist(3000, 8000); 
 
     std::string rider_id = "R" + std::to_string(id);
 
     while (simulation_running) {
-        // Sleep for a random duration before requesting a ride
         std::this_thread::sleep_for(std::chrono::milliseconds(time_dist(gen)));
         if (!simulation_running) break;
 
@@ -138,26 +171,14 @@ void simulateRider(int id, int grid_size) {
 }
 
 // ------------------------------------------------------------------
-// Part B: Matching Engine & Surge Pricing
+// Dispatcher Engine
 // ------------------------------------------------------------------
-
-// Helper to determine zone (e.g. 3x3 zones in a 10x10 grid means 4x4 blocks per zone)
-int getZoneId(int x, int y, int grid_size = 10, int num_zones = 3) {
-    int zone_width = std::ceil((double)grid_size / num_zones);
-    int zx = x / zone_width;
-    int zy = y / zone_width;
-    return zy * num_zones + zx;
-}
-
-// Map to track pending requests per zone
-std::map<int, int> pending_requests_per_zone;
-std::mutex zone_mutex; 
 
 void dispatchEngine(std::vector<Driver>& drivers, int grid_size) {
     while (simulation_running) {
         RideRequest req;
         if (!ride_queue.pop(req)) {
-            break; // Shutdown signal received and queue empty
+            break; 
         }
 
         int zone_id = getZoneId(req.pickup_x, req.pickup_y, grid_size);
@@ -172,13 +193,6 @@ void dispatchEngine(std::vector<Driver>& drivers, int grid_size) {
         double min_dist = std::numeric_limits<double>::max();
         int available_drivers_in_zone = 0;
 
-        /*
-         * (b) Why driver_mutex is locked during the nearest-driver search and status update:
-         * We lock the driver_mutex across the ENTIRE read-calculate-update cycle to prevent race conditions.
-         * If we didn't lock it, a driver simulation thread could move the driver's (x,y) while we calculate 
-         * distance, or another process could mark the driver BUSY right before we do. Locking guarantees 
-         * we evaluate the current state and secure the driver atomically.
-         */
         {
             std::lock_guard<std::mutex> lock(driver_mutex);
             
@@ -200,7 +214,7 @@ void dispatchEngine(std::vector<Driver>& drivers, int grid_size) {
                 best_driver->status = DriverStatus::BUSY;
                 driver_found = true;
             }
-        } // release driver_mutex
+        } 
 
         if (!driver_found) {
             {
@@ -209,29 +223,20 @@ void dispatchEngine(std::vector<Driver>& drivers, int grid_size) {
             }
             {
                 std::lock_guard<std::mutex> lock(zone_mutex);
-                pending_requests_per_zone[zone_id]--; // Remove from pending since we're pushing it back
+                pending_requests_per_zone[zone_id]--; 
             }
-            // Delay before re-queueing to prevent thrashing
             std::this_thread::sleep_for(std::chrono::milliseconds(1000));
             ride_queue.push(req);
             continue;
         }
 
-        // --- Driver found! Proceed to Surge Pricing & Dispatch ---
-        
         int pending_count;
         {
             std::lock_guard<std::mutex> lock(zone_mutex);
             pending_count = pending_requests_per_zone[zone_id];
-            pending_requests_per_zone[zone_id]--; // Request is now handled
+            pending_requests_per_zone[zone_id]--; 
         }
 
-        /*
-         * (c) How the surge multiplier is calculated:
-         * Surge is calculated locally per geographic zone by comparing real-time demand (pending_requests) 
-         * against supply (available_drivers). If demand exceeds supply by 3+, the multiplier hits 2.0x. 
-         * If it exceeds by 1-2, it's 1.5x. This dynamically incentivizes drivers to move to busy zones.
-         */
         double surge_multiplier = 1.0;
         int difference = pending_count - available_drivers_in_zone;
         if (difference >= 3) {
@@ -252,9 +257,32 @@ void dispatchEngine(std::vector<Driver>& drivers, int grid_size) {
             if (surge_multiplier > 1.0) std::cout << " (Surge " << surge_multiplier << "x)";
             std::cout << "\n";
         }
+        
+        rides_matched_total++;
 
-        // TODO: Detached thread to simulate the ride. 
-        // When HTTP Server is added, this should be a non-blocking asynchronous callback or event queue.
+        {
+            std::lock_guard<std::mutex> lock(matches_mutex);
+            MatchRecord record {
+                best_driver->id,
+                req.rider_id,
+                min_dist, 
+                fare,
+                surge_multiplier,
+                getCurrentTimestamp()
+            };
+            recent_matches.push_front(record);
+            if (recent_matches.size() > 20) {
+                recent_matches.pop_back();
+            }
+        }
+
+        /*
+         * (a) How the dispatcher fix keeps it non-blocking:
+         * Previously, the dispatcher thread itself might sleep to simulate the ride. Now, we spawn a 
+         * lightweight detached std::thread whose ONLY job is to sleep for 4 seconds and then safely 
+         * restore the driver to AVAILABLE. The dispatcher immediately loops back to `pop()` the next 
+         * request, remaining highly responsive and never getting stuck waiting for a ride to finish.
+         */
         std::thread([best_driver]() {
             std::this_thread::sleep_for(std::chrono::seconds(4)); 
             if (simulation_running) {
@@ -266,7 +294,7 @@ void dispatchEngine(std::vector<Driver>& drivers, int grid_size) {
 }
 
 // ------------------------------------------------------------------
-// Driver Simulation (Legacy / Unchanged Architecture)
+// Driver Simulation
 // ------------------------------------------------------------------
 void simulateDriver(Driver& driver, int grid_size) {
     std::random_device rd;
@@ -280,7 +308,6 @@ void simulateDriver(Driver& driver, int grid_size) {
 
         {
             std::lock_guard<std::mutex> lock(driver_mutex);
-            // Only wander if available
             if (driver.status == DriverStatus::AVAILABLE) {
                 driver.x = grid_dist(gen);
                 driver.y = grid_dist(gen);
@@ -290,13 +317,147 @@ void simulateDriver(Driver& driver, int grid_size) {
 }
 
 // ------------------------------------------------------------------
-// Main Execution
+// Part B: HTTP Server 
+// ------------------------------------------------------------------
+
+json getStateJson(const std::vector<Driver>& drivers, int grid_size) {
+    json state;
+    state["stats"] = json::object();
+    state["drivers"] = json::array();
+    state["riders"] = json::array();
+    state["surge_zones"] = json::array();
+    state["recent_matches"] = json::array();
+
+    int active_drivers = 0;
+    
+    {
+        std::lock_guard<std::mutex> lock(driver_mutex);
+        for (const auto& d : drivers) {
+            if (d.status == DriverStatus::AVAILABLE) active_drivers++;
+            
+            json driver_json;
+            driver_json["id"] = d.id;
+            driver_json["x"] = d.x;
+            driver_json["y"] = d.y;
+            driver_json["status"] = (d.status == DriverStatus::AVAILABLE) ? "available" : "busy";
+            driver_json["heading_deg"] = 0; // Simplified for now per requirements
+            state["drivers"].push_back(driver_json);
+        }
+    }
+    
+    state["stats"]["active_drivers"] = active_drivers;
+    state["stats"]["rides_matched_total"] = rides_matched_total.load();
+    
+    {
+        std::lock_guard<std::mutex> lock(pending_riders_mutex);
+        state["stats"]["pending_requests"] = pending_riders.size();
+        for (const auto& r : pending_riders) {
+            json rider_json;
+            rider_json["id"] = r.rider_id;
+            rider_json["x"] = r.pickup_x;
+            rider_json["y"] = r.pickup_y;
+            state["riders"].push_back(rider_json);
+        }
+    }
+    
+    int active_surge_zones = 0;
+    for (int z = 0; z < 9; ++z) {
+        int pending_in_zone = 0;
+        {
+            std::lock_guard<std::mutex> lock(zone_mutex);
+            pending_in_zone = pending_requests_per_zone[z];
+        }
+        
+        int available_in_zone = 0;
+        {
+            std::lock_guard<std::mutex> lock(driver_mutex);
+            for (const auto& d : drivers) {
+                if (d.status == DriverStatus::AVAILABLE && getZoneId(d.x, d.y, grid_size) == z) {
+                    available_in_zone++;
+                }
+            }
+        }
+        
+        int diff = pending_in_zone - available_in_zone;
+        double surge = 1.0;
+        if (diff >= 3) surge = 2.0;
+        else if (diff >= 1) surge = 1.5;
+        
+        if (surge > 1.0) {
+            active_surge_zones++;
+            
+            int num_zones = 3;
+            int zone_width = std::ceil((double)grid_size / num_zones); 
+            int zx = z % num_zones;
+            int zy = z / num_zones;
+            
+            json zone_json;
+            zone_json["x_min"] = zx * zone_width;
+            zone_json["y_min"] = zy * zone_width;
+            zone_json["x_max"] = std::min((zx + 1) * zone_width - 1, grid_size - 1);
+            zone_json["y_max"] = std::min((zy + 1) * zone_width - 1, grid_size - 1);
+            zone_json["multiplier"] = surge;
+            
+            state["surge_zones"].push_back(zone_json);
+        }
+    }
+    state["stats"]["surge_zones_active"] = active_surge_zones;
+    
+    {
+        std::lock_guard<std::mutex> lock(matches_mutex);
+        for (const auto& m : recent_matches) {
+            json m_json;
+            m_json["driver_id"] = m.driver_id;
+            m_json["rider_id"] = m.rider_id;
+            m_json["eta_min"] = m.eta_min;
+            m_json["fare"] = m.fare;
+            m_json["surge_multiplier"] = m.surge_multiplier;
+            m_json["timestamp"] = m.timestamp;
+            state["recent_matches"].push_back(m_json);
+        }
+    }
+
+    return state;
+}
+
+/*
+ * (b) Why the HTTP server runs on a separate thread:
+ * The HTTP server contains a blocking `.listen()` loop that waits indefinitely for incoming network 
+ * requests. If it ran on the main thread or dispatcher thread, it would halt the entire simulation. 
+ * By giving it its own dedicated thread, it can asynchronously receive REST API calls while the 
+ * C++ ride matching simulation continues processing at full speed in the background.
+ *
+ * (c) How JSON is assembled safely:
+ * Since multiple threads (drivers, riders, dispatcher) are constantly mutating state, the HTTP 
+ * server thread quickly locks specific mutexes (`driver_mutex`, `pending_riders_mutex`, `matches_mutex`)
+ * just long enough to copy the data into the JSON object. This ensures we never read half-written structs 
+ * or crash from a vector re-allocating memory during a read.
+ */
+void runHttpServer(std::vector<Driver>& drivers, int grid_size) {
+    httplib::Server svr;
+    
+    svr.Get("/state", [&drivers, grid_size](const httplib::Request& req, httplib::Response& res) {
+        json state = getStateJson(drivers, grid_size);
+        res.set_header("Access-Control-Allow-Origin", "*");
+        res.set_content(state.dump(), "application/json");
+    });
+    
+    {
+        std::lock_guard<std::mutex> lock(console_mutex);
+        std::cout << "[HTTP] Server active on http://0.0.0.0:8080/state\n";
+    }
+    svr.listen("0.0.0.0", 8080);
+}
+
+
+// ------------------------------------------------------------------
+// Main
 // ------------------------------------------------------------------
 int main() {
     const int NUM_DRIVERS = 5;
-    const int NUM_RIDERS = 8; // More riders than drivers to trigger surge
+    const int NUM_RIDERS = 8; 
     const int GRID_SIZE = 10;
-    const int SIMULATION_DURATION_SECONDS = 30; // Bounded demo
+    const int SIMULATION_DURATION_SECONDS = 30; 
 
     std::vector<Driver> drivers;
     std::vector<std::thread> driver_threads;
@@ -307,8 +468,7 @@ int main() {
     }
 
     std::cout << "Starting RideSync Multi-threaded Dispatch Engine...\n";
-    std::cout << "Running for " << SIMULATION_DURATION_SECONDS << " seconds.\n\n";
-
+    
     // Spawn driver threads
     for (int i = 0; i < NUM_DRIVERS; ++i) {
         driver_threads.emplace_back(simulateDriver, std::ref(drivers[i]), GRID_SIZE);
@@ -322,24 +482,47 @@ int main() {
     // Spawn dispatcher thread
     std::thread dispatcher_thread(dispatchEngine, std::ref(drivers), GRID_SIZE);
 
-    // Run for bounded duration
-    std::this_thread::sleep_for(std::chrono::seconds(SIMULATION_DURATION_SECONDS));
+    // Spawn HTTP Server thread
+    std::thread http_thread(runHttpServer, std::ref(drivers), GRID_SIZE);
 
-    // Clean Shutdown
-    std::cout << "\nTimer complete. Shutting down simulation cleanly...\n";
-    simulation_running = false;
-    ride_queue.shutdown(); // Wake up blocked dispatcher
+    if (RUN_INDEFINITELY) {
+        std::cout << "Running indefinitely for live frontend testing (Press Ctrl+C to stop)...\n\n";
+        http_thread.join(); // Blocks forever unless listen() fails
 
-    for (auto& t : driver_threads) {
-        if (t.joinable()) t.join();
-    }
-    for (auto& t : rider_threads) {
-        if (t.joinable()) t.join();
-    }
-    if (dispatcher_thread.joinable()) {
-        dispatcher_thread.join();
+        std::cout << "\nHTTP server stopped. Shutting down simulation cleanly...\n";
+        simulation_running = false;
+        ride_queue.shutdown(); 
+
+        for (auto& t : driver_threads) {
+            if (t.joinable()) t.join();
+        }
+        for (auto& t : rider_threads) {
+            if (t.joinable()) t.join();
+        }
+        if (dispatcher_thread.joinable()) {
+            dispatcher_thread.join();
+        }
+        std::cout << "Simulation Complete. All threads finished safely.\n";
+    } else {
+        std::cout << "Running for " << SIMULATION_DURATION_SECONDS << " seconds...\n\n";
+        std::this_thread::sleep_for(std::chrono::seconds(SIMULATION_DURATION_SECONDS));
+
+        std::cout << "\nTimer complete. Shutting down simulation cleanly...\n";
+        simulation_running = false;
+        ride_queue.shutdown(); 
+
+        for (auto& t : driver_threads) {
+            if (t.joinable()) t.join();
+        }
+        for (auto& t : rider_threads) {
+            if (t.joinable()) t.join();
+        }
+        if (dispatcher_thread.joinable()) {
+            dispatcher_thread.join();
+        }
+        std::cout << "Simulation Complete. All threads finished safely.\n";
+        exit(0); 
     }
 
-    std::cout << "Simulation Complete. All threads finished safely.\n";
     return 0;
 }
