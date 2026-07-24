@@ -44,9 +44,10 @@ graph TD
 - Currently includes a mock JS simulator so you can see the UI working without the backend.
 
 **Backend (`backend/`)**
-- Basic C++ driver simulation module is up and running.
-- Uses `std::thread` and `std::mutex` to spawn independent concurrent threads for each driver.
-- Drivers randomly navigate a coordinate grid and safely log their positions to the console without stepping on each other's threads.
+- Uses `std::thread` and `std::mutex` to spawn independent concurrent threads for drivers, riders, and a central dispatcher.
+- **Thread-safe Request Queue**: Uses a `std::condition_variable` to manage incoming ride requests efficiently without CPU-heavy busy waiting.
+- **Matching Engine**: Dispatcher uses Euclidean distance to locate and lock the nearest available driver atomically.
+- **Dynamic Surge Pricing**: Divides the city grid into geographic zones, calculating real-time supply vs demand (pending requests vs available drivers) to automatically apply surge multipliers.
 
 ## How to run it
 
@@ -68,7 +69,7 @@ clang++ -std=c++17 -pthread main.cpp -o sim
 
 ## What's next
 - [ ] Connect the frontend directly to the C++ backend (likely via a local HTTP API).
-- [ ] Build out the actual rider matching algorithm in C++.
-- [ ] Implement the surge pricing logic based on driver/rider density.
+- [x] Build out the actual rider matching algorithm in C++.
+- [x] Implement the surge pricing logic based on driver/rider density.
 
 Feel free to poke around the code or run the simulation locally!
