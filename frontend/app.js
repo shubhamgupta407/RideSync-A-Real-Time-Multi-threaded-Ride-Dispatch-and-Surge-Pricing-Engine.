@@ -1056,7 +1056,13 @@ function stepSimulation() {
     })),
     riders: simRiders,
     surge_zones: simSurgeZones,
-    recent_matches: simRecentMatches
+    recent_matches: simRecentMatches,
+    thread_logs: [
+      `[${new Date().toLocaleTimeString()}] LOCK driver_mutex -> Scanning available drivers using Euclidean formula √((Δx)² + (Δy)²)`,
+      `[${new Date().toLocaleTimeString()}] MATCH SUCCESS -> Assigned closest available driver | UNLOCK driver_mutex`,
+      `[${new Date().toLocaleTimeString()}] QUEUE push -> Request added to queue | notify_one() sent to condition_variable`,
+      `[${new Date().toLocaleTimeString()}] THREAD async ride complete -> Driver restored to AVAILABLE`
+    ]
   };
 }
 
