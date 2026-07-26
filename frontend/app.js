@@ -727,6 +727,10 @@ const seenLogEntries = new Set();
 function renderThreadLogs(logs) {
   if (!threadLogsContainer || !logs || logs.length === 0) return;
   
+  if (threadLogsContainer.children.length === 1 && threadLogsContainer.children[0].innerText.includes("Connecting")) {
+    threadLogsContainer.innerHTML = '';
+  }
+  
   const sorted = [...logs].reverse();
   let added = false;
   
