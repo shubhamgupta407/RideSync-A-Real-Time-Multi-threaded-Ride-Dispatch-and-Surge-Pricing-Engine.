@@ -8,8 +8,11 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <!-- Link stylesheet -->
-  <link rel="stylesheet" href="styles.css">
+  <!-- Leaflet Interactive City Mapping Library -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <!-- Link stylesheet with cache buster -->
+  <link rel="stylesheet" href="styles.css?v=realcity">
 </head>
 <body>
 
@@ -194,8 +197,17 @@
 
         <!-- City Map viewport -->
         <div class="map-panel">
-          <div class="map-header">
-            <h2 style="font-size: 1rem; color: var(--text-secondary);">City Dispatch Viewport</h2>
+          <div class="map-header" style="flex-wrap: wrap; gap: 0.75rem;">
+            <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+              <h2 style="font-size: 1.05rem; color: var(--text-primary); font-weight: 700; display: flex; align-items: center; gap: 0.4rem;">
+                🗺️ Live Autonomous Dispatch Command Center
+              </h2>
+              <!-- View Switcher Tabs -->
+              <div style="display: flex; background: #f1f5f9; padding: 0.2rem; border-radius: 0.5rem; border: 1px solid #cbd5e1;">
+                <button id="viewBtnRealMap" style="background: #0f172a; color: #38bdf8; font-weight: 600; padding: 0.3rem 0.75rem; border-radius: 0.35rem; border: none; font-size: 0.75rem; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">🗺️ Real City Map (Manhattan GPS)</button>
+                <button id="viewBtnMatrix" style="background: transparent; color: #64748b; font-weight: 600; padding: 0.3rem 0.75rem; border-radius: 0.35rem; border: none; font-size: 0.75rem; cursor: pointer;">📐 12x12 Euclidean Matrix</button>
+              </div>
+            </div>
             <div class="map-legend">
               <div class="legend-item">
                 <span class="legend-color available"></span>
@@ -203,7 +215,7 @@
               </div>
               <div class="legend-item">
                 <span class="legend-color busy"></span>
-                <span>Muted / Busy driver</span>
+                <span>Busy / Assigned</span>
               </div>
               <div class="legend-item">
                 <span class="legend-color rider"></span>
@@ -211,20 +223,16 @@
               </div>
               <div class="legend-item">
                 <span class="legend-color surge"></span>
-                <span>Surge overlay</span>
-              </div>
-              <div class="legend-item">
-                <span class="legend-color" style="background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%); border: 1px solid #86efac;"></span>
-                <span>Park</span>
-              </div>
-              <div class="legend-item">
-                <span class="legend-color" style="background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%); border: 1px solid #7dd3fc;"></span>
-                <span>Water / River</span>
+                <span>Surge zone</span>
               </div>
             </div>
           </div>
 
-          <div class="map-canvas-container" id="mapCanvasContainer">
+          <!-- Real Interactive Geographic City Map (Leaflet - Manhattan NYC) -->
+          <div id="realCityMapContainer" style="width: 100%; height: 480px; border-radius: 0.75rem; border: 1px solid #334155; overflow: hidden; position: relative; z-index: 1; box-shadow: inset 0 0 20px rgba(0,0,0,0.5);"></div>
+
+          <!-- 12x12 Euclidean Algorithm Grid Matrix (Hidden by default in favor of Real Map) -->
+          <div class="map-canvas-container" id="mapCanvasContainer" style="display: none;">
             <!-- Grid Lines Layer -->
             <div class="grid-overlay" id="gridOverlay"></div>
             

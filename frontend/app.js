@@ -78,6 +78,18 @@ const feedContainer = document.getElementById('feedContainer');
 const feedEmptyState = document.getElementById('feedEmptyState');
 const feedMatchedCount = document.getElementById('feedMatchedCount');
 
+// Leaflet Interactive Real City Map Variables
+const realCityMapContainer = document.getElementById('realCityMapContainer');
+const viewBtnRealMap = document.getElementById('viewBtnRealMap');
+const viewBtnMatrix = document.getElementById('viewBtnMatrix');
+const mapCanvasContainer = document.getElementById('mapCanvasContainer');
+let leafletMap = null;
+let leafletDriversLayer = null;
+let leafletRidersLayer = null;
+let leafletSurgeLayer = null;
+let leafletLinesLayer = null;
+let currentViewMode = 'realmap';
+
 
 // --- Initialize Application ---
 function init() {
@@ -87,6 +99,7 @@ function init() {
   applyGridCSS();
   drawGridCoordinateLabels();
   drawCityBlocks();
+  initLeafletMap();
   
   if (config.dataSource === 'simulated') {
     initSimulation();
@@ -356,9 +369,148 @@ function setConnectionState(status) {
 }
 
 
+// --- Leaflet Interactive NYC GPS Map Functions ---
+function initLeafletMap() {
+  if (!realCityMapContainer || typeof L === 'undefined') return;
+  
+  // Center on Midtown Manhattan (Times Square / Central Park / Theater District)
+  leafletMap = L.map('realCityMapContainer', {
+    zoomControl: true,
+    attributionControl: false
+  }).setView([40.7580, -73.9855], 14);
+
+  // CartoDB Dark Matter base map tiles (Sleek Uber dark dispatch mode)
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    maxZoom: 19,
+    subdomains: 'abcd'
+  }).addTo(leafletMap);
+
+  leafletSurgeLayer = L.layerGroup().addTo(leafletMap);
+  leafletLinesLayer = L.layerGroup().addTo(leafletMap);
+  leafletDriversLayer = L.layerGroup().addTo(leafletMap);
+  leafletRidersLayer = L.layerGroup().addTo(leafletMap);
+
+  // View switch button listeners
+  if (viewBtnRealMap && viewBtnMatrix) {
+    viewBtnRealMap.addEventListener('click', () => {
+      currentViewMode = 'realmap';
+      realCityMapContainer.style.display = 'block';
+      if (mapCanvasContainer) mapCanvasContainer.style.display = 'none';
+      viewBtnRealMap.style.background = '#0f172a';
+      viewBtnRealMap.style.color = '#38bdf8';
+      viewBtnMatrix.style.background = 'transparent';
+      viewBtnMatrix.style.color = '#64748b';
+      setTimeout(() => leafletMap.invalidateSize(), 100);
+    });
+
+    viewBtnMatrix.addEventListener('click', () => {
+      currentViewMode = 'matrix';
+      realCityMapContainer.style.display = 'none';
+      if (mapCanvasContainer) mapCanvasContainer.style.display = 'block';
+      viewBtnMatrix.style.background = '#0f172a';
+      viewBtnMatrix.style.color = '#38bdf8';
+      viewBtnRealMap.style.background = 'transparent';
+      viewBtnRealMap.style.color = '#64748b';
+    });
+  }
+}
+
+// Map 12x12 C++ Grid coordinates onto Manhattan geographic coordinates (NYC)
+function gridToLatLng(x, y) {
+  const BASE_LAT = 40.7350; // Lower boundary (South Midtown / Chelsea)
+  const BASE_LNG = -74.0050; // West boundary (Hudson River / Hell's Kitchen)
+  const LAT_STEP = 0.0038; // ~400m North per grid unit
+  const LNG_STEP = 0.0035; // ~300m East per grid unit
+  
+  return [
+    BASE_LAT + (y * LAT_STEP),
+    BASE_LNG + (x * LNG_STEP)
+  ];
+}
+
+// Update the real geographic Leaflet map with C++ multithreaded simulation data
+function updateLeafletMap(data) {
+  if (!leafletMap || typeof L === 'undefined' || currentViewMode !== 'realmap') return;
+
+  // Clear previous frame dynamic layers
+  if (leafletSurgeLayer) leafletSurgeLayer.clearLayers();
+  if (leafletLinesLayer) leafletLinesLayer.clearLayers();
+  if (leafletDriversLayer) leafletDriversLayer.clearLayers();
+  if (leafletRidersLayer) leafletRidersLayer.clearLayers();
+
+  // 1. Draw Surge Areas on real NYC streets
+  if (data.surge_zones) {
+    data.surge_zones.forEach(zone => {
+      const sw = gridToLatLng(zone.x_min, zone.y_min);
+      const ne = gridToLatLng(zone.x_max + 1, zone.y_max + 1);
+      const bounds = L.latLngBounds(sw, ne);
+      L.rectangle(bounds, {
+        color: '#f59e0b',
+        weight: 1,
+        fillColor: '#f59e0b',
+        fillOpacity: 0.18,
+        dashArray: '4, 4'
+      }).addTo(leafletSurgeLayer).bindPopup(`<b>🔥 ${zone.multiplier}x Surge Pricing Active</b><br>High rider demand in this Manhattan zone!`);
+    });
+  }
+
+  // 2. Draw GPS Riders / Pickup Pins
+  if (data.riders) {
+    data.riders.forEach(rider => {
+      const latlng = gridToLatLng(rider.x, rider.y);
+      const icon = L.divIcon({
+        className: 'custom-leaflet-rider',
+        html: `<svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3" fill="#0f172a"/></svg>`,
+        iconSize: [28, 28],
+        iconAnchor: [14, 14]
+      });
+      L.marker(latlng, { icon }).addTo(leafletRidersLayer)
+       .bindPopup(`<b>🧑 ${rider.id}</b><br>Pickup Grid: (${rider.x}, ${rider.y})<br>Status: Waiting for Dispatch`);
+    });
+  }
+
+  // 3. Draw GPS Autonomous Drivers
+  if (data.drivers) {
+    data.drivers.forEach(driver => {
+      const latlng = gridToLatLng(driver.x, driver.y);
+      const isBusy = driver.status === 'BUSY' || driver.status === 'ASSIGNED';
+      const icon = L.divIcon({
+        className: `custom-leaflet-driver ${isBusy ? 'busy' : ''}`,
+        html: `<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M15 2H9c-1.1 0-2 .9-2 2v2.2L5.4 7.8A1.5 1.5 0 0 0 4.5 9v6c0 .6.3 1.1.8 1.4L7 17.8V20c0 1.1.9 2 2 2h6c1.1 0 2-.9 2-2v-2.2l1.7-1.4c.5-.3.8-.8.8-1.4V9c0-.5-.3-1-.8-1.4L17 6.2V4c0-1.1-.9-2-2-2z"/></svg>`,
+        iconSize: [32, 32],
+        iconAnchor: [16, 16]
+      });
+      L.marker(latlng, { icon }).addTo(leafletDriversLayer)
+       .bindPopup(`<b>🚕 Driver ${driver.id}</b><br>Status: <span style="color: ${isBusy ? '#94a3b8' : '#10b981'}; font-weight: bold;">${driver.status}</span><br>Grid: (${driver.x.toFixed(1)}, ${driver.y.toFixed(1)})`);
+    });
+  }
+
+  // 4. Draw Neon Laser Match Lines connecting matched cars to riders across Manhattan!
+  if (data.recent_matches && data.drivers && data.riders) {
+    data.recent_matches.slice(0, 5).forEach(match => {
+      const driver = data.drivers.find(d => d.id === match.driver_id);
+      const rider = data.riders.find(r => r.id === match.rider_id);
+      if (driver && rider) {
+        const dLatLng = gridToLatLng(driver.x, driver.y);
+        const rLatLng = gridToLatLng(rider.x, rider.y);
+        L.polyline([dLatLng, rLatLng], {
+          color: '#38bdf8',
+          weight: 3,
+          opacity: 0.85,
+          dashArray: '6, 6',
+          className: 'leaflet-laser-line'
+        }).addTo(leafletLinesLayer);
+      }
+    });
+  }
+}
+
 // --- Main Dashboard Rendering ---
 function updateDashboard(data) {
   if (!data) return;
+
+  // 0. Update Real Geographic City Map (Leaflet)
+  updateLeafletMap(data);
 
   // 1. Update stats indicators
   updateStatsBar(data.stats);
