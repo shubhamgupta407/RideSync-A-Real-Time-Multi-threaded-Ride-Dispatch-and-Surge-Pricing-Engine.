@@ -99,7 +99,7 @@ function init() {
   applyGridCSS();
   drawGridCoordinateLabels();
   drawCityBlocks();
-  initLeafletMap();
+  initManhattanMap();
   
   if (config.dataSource === 'simulated') {
     initSimulation();
@@ -369,29 +369,67 @@ function setConnectionState(status) {
 }
 
 
-// --- Leaflet Interactive NYC GPS Map Functions ---
-function initLeafletMap() {
-  if (!realCityMapContainer || typeof L === 'undefined') return;
-  
-  // Center on Midtown Manhattan (Times Square / Central Park / Theater District)
-  leafletMap = L.map('realCityMapContainer', {
-    zoomControl: true,
-    attributionControl: false
-  }).setView([40.7580, -73.9855], 14);
+// Avenue and Street names for New York City (Manhattan)
+const NYC_AVENUES = ["West Side Hwy", "11th Ave", "10th Ave", "9th Ave", "8th Ave", "7th Ave", "Broadway", "5th Ave", "Madison Ave", "Lexington Ave", "3rd Ave", "1st Ave", "FDR Drive"];
+const NYC_STREETS = ["Battery Pk", "Wall St", "Canal St", "Houston St", "14th St", "23rd St", "34th St", "42nd St", "50th St", "59th St", "72nd St", "86th St", "96th St"];
 
-  // CartoDB Dark Matter base map tiles (Direct CDN url without {s} or {r} for 100% Safari compatibility)
-  L.tileLayer('https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png', {
-    maxZoom: 19
-  }).addTo(leafletMap);
+// --- Built-in Standalone Manhattan GPS Dark Navigation Engine (Immune to Firewalls & NetMirror) ---
+function initManhattanMap() {
+  if (!realCityMapContainer) return;
 
-  leafletSurgeLayer = L.layerGroup().addTo(leafletMap);
-  leafletLinesLayer = L.layerGroup().addTo(leafletMap);
-  leafletDriversLayer = L.layerGroup().addTo(leafletMap);
-  leafletRidersLayer = L.layerGroup().addTo(leafletMap);
+  // Build a stunning standalone Manhattan GPS Dark Navigation Viewport (No CDN needed, immune to firewalls/NetMirror)
+  realCityMapContainer.innerHTML = `
+    <div id="nycMapViewport" style="position: relative; width: 100%; height: 100%; background: #0b1329; overflow: hidden; font-family: var(--font-family); user-select: none;">
+      <!-- Waterways & Parks Background Layer -->
+      <div style="position: absolute; top: 0; left: 0; width: 11%; height: 100%; background: linear-gradient(90deg, #0284c7 0%, #0369a1 100%); opacity: 0.22; border-right: 2px solid #38bdf8;" title="Hudson River"></div>
+      <div style="position: absolute; top: 0; right: 0; width: 11%; height: 100%; background: linear-gradient(270deg, #0284c7 0%, #0369a1 100%); opacity: 0.22; border-left: 2px solid #38bdf8;" title="East River"></div>
+      <div style="position: absolute; top: 8%; left: 36%; width: 28%; height: 26%; background: linear-gradient(135deg, #059669 0%, #047857 100%); opacity: 0.35; border: 1px solid #34d399; border-radius: 8px; box-shadow: 0 0 20px rgba(16, 185, 129, 0.25);" title="Central Park">
+        <div style="color: #34d399; font-size: 0.75rem; font-weight: 700; padding: 6px; text-shadow: 0 1px 2px rgba(0,0,0,0.8);">🌲 Central Park</div>
+      </div>
+      <div style="position: absolute; bottom: 12%; right: 16%; width: 26%; height: 22%; background: linear-gradient(135deg, #4f46e5 0%, #3730a3 100%); opacity: 0.28; border: 1px solid #818cf8; border-radius: 8px; box-shadow: 0 0 20px rgba(99, 102, 241, 0.2);" title="Financial District">
+        <div style="color: #818cf8; font-size: 0.75rem; font-weight: 700; padding: 6px; text-shadow: 0 1px 2px rgba(0,0,0,0.8);">🏢 Wall St / Fin District</div>
+      </div>
+      <div style="position: absolute; top: 42%; left: 42%; width: 22%; height: 16%; background: linear-gradient(135deg, #db2777 0%, #9d174d 100%); opacity: 0.28; border: 1px solid #f472b6; border-radius: 8px; box-shadow: 0 0 20px rgba(236, 72, 153, 0.2);" title="Times Square / Midtown">
+        <div style="color: #f472b6; font-size: 0.75rem; font-weight: 700; padding: 6px; text-shadow: 0 1px 2px rgba(0,0,0,0.8);">🎭 Times Sq / Theater Dist</div>
+      </div>
+      <div style="position: absolute; bottom: 45%; left: 16%; width: 20%; height: 16%; background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); opacity: 0.22; border: 1px solid #7dd3fc; border-radius: 8px;" title="Chelsea / High Line">
+        <div style="color: #7dd3fc; font-size: 0.75rem; font-weight: 700; padding: 6px; text-shadow: 0 1px 2px rgba(0,0,0,0.8);">🌊 Chelsea Piers</div>
+      </div>
 
-  // Ensure map container renders properly after DOM layout calculation
-  setTimeout(() => { if (leafletMap) leafletMap.invalidateSize(); }, 250);
-  setTimeout(() => { if (leafletMap) leafletMap.invalidateSize(); }, 1000);
+      <!-- Street Grid Lines -->
+      <div id="nycStreetLines" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;"></div>
+
+      <!-- Dynamic Layers -->
+      <div id="nycSurgeLayer" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;"></div>
+      <svg id="nycLaserLayer" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; z-index: 10;"></svg>
+      <div id="nycRidersLayer" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 20;"></div>
+      <div id="nycDriversLayer" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 30;"></div>
+
+      <!-- Avenue & Street Legend Bar at bottom -->
+      <div style="position: absolute; bottom: 0; left: 0; width: 100%; background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(6px); padding: 6px 14px; display: flex; justify-content: space-between; font-size: 0.68rem; color: #94a3b8; border-top: 1px solid #334155; z-index: 40;">
+        <span style="color: #38bdf8; font-weight: 600;">📍 West Side Hwy</span>
+        <span>📍 8th Ave</span>
+        <span style="color: #f472b6; font-weight: 600;">📍 Broadway</span>
+        <span>📍 5th Ave</span>
+        <span style="color: #34d399; font-weight: 600;">📍 Lexington</span>
+        <span>📍 FDR Drive</span>
+      </div>
+    </div>
+  `;
+
+  // Draw street avenue lines
+  const linesContainer = document.getElementById('nycStreetLines');
+  if (linesContainer) {
+    let gridHTML = '';
+    for (let i = 1; i <= 11; i++) {
+      const pct = (i / 12) * 100;
+      // Vertical Avenue line
+      gridHTML += `<div style="position: absolute; left: ${pct}%; top: 0; width: 1px; height: 100%; background: rgba(255, 255, 255, 0.08); border-left: 1px dashed rgba(255, 255, 255, 0.06);"></div>`;
+      // Horizontal Street line
+      gridHTML += `<div style="position: absolute; top: ${pct}%; left: 0; height: 1px; width: 100%; background: rgba(255, 255, 255, 0.08); border-top: 1px dashed rgba(255, 255, 255, 0.06);"></div>`;
+    }
+    linesContainer.innerHTML = gridHTML;
+  }
 
   // View switch button listeners
   if (viewBtnRealMap && viewBtnMatrix) {
@@ -403,7 +441,6 @@ function initLeafletMap() {
       viewBtnRealMap.style.color = '#38bdf8';
       viewBtnMatrix.style.background = 'transparent';
       viewBtnMatrix.style.color = '#64748b';
-      setTimeout(() => leafletMap.invalidateSize(), 50);
     });
 
     viewBtnMatrix.addEventListener('click', () => {
@@ -418,104 +455,98 @@ function initLeafletMap() {
   }
 }
 
-// Map 12x12 C++ Grid coordinates onto Manhattan geographic coordinates (NYC)
-function gridToLatLng(x, y) {
-  const BASE_LAT = 40.7350; // Lower boundary (South Midtown / Chelsea)
-  const BASE_LNG = -74.0050; // West boundary (Hudson River / Hell's Kitchen)
-  const LAT_STEP = 0.0038; // ~400m North per grid unit
-  const LNG_STEP = 0.0035; // ~300m East per grid unit
-  
-  return [
-    BASE_LAT + (y * LAT_STEP),
-    BASE_LNG + (x * LNG_STEP)
-  ];
+// Map 0..12 to percentage positions inside the viewport (from 6% to 94%)
+function getNYCMapCoords(x, y) {
+  const leftPct = 6 + (x / 12) * 88;
+  const topPct = 6 + ((12 - y) / 12) * 80;
+  return { left: leftPct, top: topPct };
 }
 
-// Update the real geographic Leaflet map with C++ multithreaded simulation data
-function updateLeafletMap(data) {
-  if (!leafletMap || typeof L === 'undefined' || currentViewMode !== 'realmap') return;
+// Update the Manhattan GPS map with live C++ multithreaded simulation data
+function updateManhattanMap(data) {
+  if (!realCityMapContainer || currentViewMode !== 'realmap') return;
+  const driversLayer = document.getElementById('nycDriversLayer');
+  const ridersLayer = document.getElementById('nycRidersLayer');
+  const surgeLayer = document.getElementById('nycSurgeLayer');
+  const laserLayer = document.getElementById('nycLaserLayer');
 
-  leafletMap.invalidateSize();
+  if (!driversLayer || !ridersLayer || !surgeLayer || !laserLayer) return;
 
-  // Clear previous frame dynamic layers
-  if (leafletSurgeLayer) leafletSurgeLayer.clearLayers();
-  if (leafletLinesLayer) leafletLinesLayer.clearLayers();
-  if (leafletDriversLayer) leafletDriversLayer.clearLayers();
-  if (leafletRidersLayer) leafletRidersLayer.clearLayers();
-
-  // 1. Draw Surge Areas on real NYC streets
+  // 1. Render Surge Zones
+  let surgeHTML = '';
   if (data.surge_zones) {
     data.surge_zones.forEach(zone => {
-      const sw = gridToLatLng(zone.x_min, zone.y_min);
-      const ne = gridToLatLng(zone.x_max + 1, zone.y_max + 1);
-      const bounds = L.latLngBounds(sw, ne);
-      L.rectangle(bounds, {
-        color: '#f59e0b',
-        weight: 1,
-        fillColor: '#f59e0b',
-        fillOpacity: 0.18,
-        dashArray: '4, 4'
-      }).addTo(leafletSurgeLayer).bindPopup(`<b>🔥 ${zone.multiplier}x Surge Pricing Active</b><br>High rider demand in this Manhattan zone!`);
+      const sw = getNYCMapCoords(zone.x_min, zone.y_min);
+      const ne = getNYCMapCoords(zone.x_max + 1, zone.y_max + 1);
+      const left = Math.min(sw.left, ne.left);
+      const top = Math.min(sw.top, ne.top);
+      const width = Math.abs(ne.left - sw.left);
+      const height = Math.abs(sw.top - ne.top);
+      surgeHTML += `<div style="position: absolute; left: ${left}%; top: ${top}%; width: ${width}%; height: ${height}%; background: rgba(245, 158, 11, 0.22); border: 1px dashed #f59e0b; border-radius: 6px; box-shadow: 0 0 15px rgba(245, 158, 11, 0.3); pointer-events: auto;" title="🔥 ${zone.multiplier}x Surge Pricing Active"></div>`;
     });
   }
+  surgeLayer.innerHTML = surgeHTML;
 
-  // 2. Draw GPS Riders / Pickup Pins
+  // 2. Render GPS Riders
+  let ridersHTML = '';
   if (data.riders) {
     data.riders.forEach(rider => {
-      const latlng = gridToLatLng(rider.x, rider.y);
-      const icon = L.divIcon({
-        className: 'custom-leaflet-rider',
-        html: `<svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3" fill="#0f172a"/></svg>`,
-        iconSize: [28, 28],
-        iconAnchor: [14, 14]
-      });
-      L.marker(latlng, { icon }).addTo(leafletRidersLayer)
-       .bindPopup(`<b>🧑 ${rider.id}</b><br>Pickup Grid: (${rider.x}, ${rider.y})<br>Status: Waiting for Dispatch`);
+      const pos = getNYCMapCoords(rider.x, rider.y);
+      const ave = NYC_AVENUES[Math.min(12, Math.floor(rider.x))] || "Broadway";
+      const st = NYC_STREETS[Math.min(12, Math.floor(rider.y))] || "42nd St";
+      ridersHTML += `
+        <div style="position: absolute; left: ${pos.left}%; top: ${pos.top}%; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; pointer-events: auto; z-index: 25;" title="Waiting at ${ave} & ${st}">
+          <div style="background: #f43f5e; color: white; border-radius: 50%; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 15px #f43f5e; border: 2px solid white; animation: pulsePin 1.5s infinite; font-size: 0.75rem; font-weight: bold;">🧑</div>
+          <div style="background: rgba(15, 23, 42, 0.95); color: #f43f5e; font-size: 0.6rem; padding: 2px 6px; border-radius: 4px; margin-top: 2px; border: 1px solid #f43f5e; font-weight: 700; white-space: nowrap; box-shadow: 0 2px 4px rgba(0,0,0,0.5);">${rider.id}: ${ave}</div>
+        </div>
+      `;
     });
   }
+  ridersLayer.innerHTML = ridersHTML;
 
-  // 3. Draw GPS Autonomous Drivers
+  // 3. Render Autonomous Drivers
+  let driversHTML = '';
   if (data.drivers) {
     data.drivers.forEach(driver => {
-      const latlng = gridToLatLng(driver.x, driver.y);
+      const pos = getNYCMapCoords(driver.x, driver.y);
+      const ave = NYC_AVENUES[Math.min(12, Math.floor(driver.x))] || "5th Ave";
+      const st = NYC_STREETS[Math.min(12, Math.floor(driver.y))] || "42nd St";
       const isBusy = driver.status === 'BUSY' || driver.status === 'ASSIGNED';
-      const icon = L.divIcon({
-        className: `custom-leaflet-driver ${isBusy ? 'busy' : ''}`,
-        html: `<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M15 2H9c-1.1 0-2 .9-2 2v2.2L5.4 7.8A1.5 1.5 0 0 0 4.5 9v6c0 .6.3 1.1.8 1.4L7 17.8V20c0 1.1.9 2 2 2h6c1.1 0 2-.9 2-2v-2.2l1.7-1.4c.5-.3.8-.8.8-1.4V9c0-.5-.3-1-.8-1.4L17 6.2V4c0-1.1-.9-2-2-2z"/></svg>`,
-        iconSize: [32, 32],
-        iconAnchor: [16, 16]
-      });
-      L.marker(latlng, { icon }).addTo(leafletDriversLayer)
-       .bindPopup(`<b>🚕 Driver ${driver.id}</b><br>Status: <span style="color: ${isBusy ? '#94a3b8' : '#10b981'}; font-weight: bold;">${driver.status}</span><br>Grid: (${driver.x.toFixed(1)}, ${driver.y.toFixed(1)})`);
+      const badgeColor = isBusy ? '#94a3b8' : '#10b981';
+      driversHTML += `
+        <div style="position: absolute; left: ${pos.left}%; top: ${pos.top}%; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; pointer-events: auto; transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1); z-index: 35;" title="Driver ${driver.id} (${driver.status}) at ${ave} & ${st}">
+          <div style="background: ${badgeColor}; color: white; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 15px ${badgeColor}, 0 2px 6px rgba(0,0,0,0.6); border: 2px solid white;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M15 2H9c-1.1 0-2 .9-2 2v2.2L5.4 7.8A1.5 1.5 0 0 0 4.5 9v6c0 .6.3 1.1.8 1.4L7 17.8V20c0 1.1.9 2 2 2h6c1.1 0 2-.9 2-2v-2.2l1.7-1.4c.5-.3.8-.8.8-1.4V9c0-.5-.3-1-.8-1.4L17 6.2V4c0-1.1-.9-2-2-2z"/></svg>
+          </div>
+          <div style="background: rgba(15, 23, 42, 0.95); color: ${badgeColor}; font-size: 0.62rem; padding: 2px 6px; border-radius: 4px; margin-top: 3px; border: 1px solid ${badgeColor}; font-weight: 700; white-space: nowrap; box-shadow: 0 2px 4px rgba(0,0,0,0.5);">🚕 ${driver.id} • ${st}</div>
+        </div>
+      `;
     });
   }
+  driversLayer.innerHTML = driversHTML;
 
-  // 4. Draw Neon Laser Match Lines connecting matched cars to riders across Manhattan!
+  // 4. Render Neon Laser Match Lines
+  let laserHTML = '';
   if (data.recent_matches && data.drivers && data.riders) {
-    data.recent_matches.slice(0, 5).forEach(match => {
+    data.recent_matches.slice(0, 4).forEach(match => {
       const driver = data.drivers.find(d => d.id === match.driver_id);
       const rider = data.riders.find(r => r.id === match.rider_id);
       if (driver && rider) {
-        const dLatLng = gridToLatLng(driver.x, driver.y);
-        const rLatLng = gridToLatLng(rider.x, rider.y);
-        L.polyline([dLatLng, rLatLng], {
-          color: '#38bdf8',
-          weight: 3,
-          opacity: 0.85,
-          dashArray: '6, 6',
-          className: 'leaflet-laser-line'
-        }).addTo(leafletLinesLayer);
+        const dPos = getNYCMapCoords(driver.x, driver.y);
+        const rPos = getNYCMapCoords(rider.x, rider.y);
+        laserHTML += `<line x1="${dPos.left}%" y1="${dPos.top}%" x2="${rPos.left}%" y2="${rPos.top}%" stroke="#38bdf8" stroke-width="3" stroke-dasharray="6 6" stroke-linecap="round" opacity="0.85"><animate attributeName="stroke-dashoffset" from="12" to="0" dur="1s" repeatCount="indefinite"/></line>`;
       }
     });
   }
+  laserLayer.innerHTML = laserHTML;
 }
 
 // --- Main Dashboard Rendering ---
 function updateDashboard(data) {
   if (!data) return;
 
-  // 0. Update Real Geographic City Map (Leaflet)
-  updateLeafletMap(data);
+  // 0. Update Manhattan GPS Dark Navigation Map
+  updateManhattanMap(data);
 
   // 1. Update stats indicators
   updateStatsBar(data.stats);
