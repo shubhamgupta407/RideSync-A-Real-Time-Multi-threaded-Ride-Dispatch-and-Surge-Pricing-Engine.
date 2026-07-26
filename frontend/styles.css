@@ -407,8 +407,8 @@ header {
   pointer-events: none;
   background-size: calc(100% / (var(--grid-columns) - 1)) calc(100% / (var(--grid-rows) - 1));
   background-image: 
-    linear-gradient(to right, rgba(251, 191, 36, 0.4) 1px, rgba(255, 255, 255, 0.12) 2px, transparent 3px),
-    linear-gradient(to bottom, rgba(251, 191, 36, 0.4) 1px, rgba(255, 255, 255, 0.12) 2px, transparent 3px);
+    linear-gradient(to right, rgba(56, 189, 248, 0.35) 1px, rgba(255, 255, 255, 0.08) 2px, transparent 3px),
+    linear-gradient(to bottom, rgba(56, 189, 248, 0.35) 1px, rgba(255, 255, 255, 0.08) 2px, transparent 3px);
   z-index: 2; /* Sits above blocks, below vehicles */
 }
 
