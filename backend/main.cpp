@@ -64,10 +64,12 @@ std::mutex driver_mutex;
 std::mutex zone_mutex; 
 std::mutex pending_riders_mutex;
 std::mutex matches_mutex;
+std::mutex logs_mutex;
 
 std::map<int, int> pending_requests_per_zone;
 std::vector<RideRequest> pending_riders;
 std::deque<MatchRecord> recent_matches;
+std::deque<std::string> thread_logs;
 std::atomic<int> rides_matched_total(0);
 std::atomic<bool> simulation_running(true);
 
@@ -81,6 +83,25 @@ std::string getCurrentTimestamp() {
     std::ostringstream oss;
     oss << std::put_time(&tm_struct, "%Y-%m-%dT%H:%M:%SZ"); // ISO 8601 format
     return oss.str();
+}
+
+std::string getShortTime() {
+    auto now = std::chrono::system_clock::now();
+    std::time_t now_time = std::chrono::system_clock::to_time_t(now);
+    std::tm tm_struct;
+    localtime_r(&now_time, &tm_struct);
+    
+    std::ostringstream oss;
+    oss << std::put_time(&tm_struct, "%H:%M:%S"); 
+    return oss.str();
+}
+
+void logThreadEvent(const std::string& msg) {
+    std::lock_guard<std::mutex> lock(logs_mutex);
+    thread_logs.push_front("[" + getShortTime() + "] " + msg);
+    if (thread_logs.size() > 20) {
+        thread_logs.pop_back();
+    }
 }
 
 // Helper to determine zone
@@ -108,7 +129,17 @@ public:
         
         {
             std::lock_guard<std::mutex> plock(pending_riders_mutex);
-            pending_riders.push_back(req);
+            // Prevent duplicate pending entries in JSON tracker when re-queueing
+            bool found = false;
+            for (const auto& r : pending_riders) {
+                if (r.rider_id == req.rider_id) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                pending_riders.push_back(req);
+            }
         }
         
         queue_cv.notify_one();
@@ -150,7 +181,7 @@ void simulateRider(int id, int grid_size) {
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_int_distribution<> grid_dist(0, grid_size - 1);
-    std::uniform_int_distribution<> time_dist(3000, 8000); 
+    std::uniform_int_distribution<> time_dist(5000, 10000); // 5 to 10s for balanced UI flow
 
     std::string rider_id = "R" + std::to_string(id);
 
@@ -166,6 +197,7 @@ void simulateRider(int id, int grid_size) {
         req.drop_y = grid_dist(gen);
         req.timestamp = getCurrentTimestamp();
 
+        logThreadEvent("QUEUE push -> Rider " + rider_id + " requesting ride at (" + std::to_string(req.pickup_x) + "," + std::to_string(req.pickup_y) + ") | notify_one() sent");
         ride_queue.push(req);
     }
 }
@@ -193,6 +225,8 @@ void dispatchEngine(std::vector<Driver>& drivers, int grid_size) {
         double min_dist = std::numeric_limits<double>::max();
         int available_drivers_in_zone = 0;
 
+        logThreadEvent("LOCK driver_mutex -> Scanning available drivers for " + req.rider_id + " using Euclidean formula √((Δx)² + (Δy)²)");
+
         {
             std::lock_guard<std::mutex> lock(driver_mutex);
             
@@ -217,6 +251,7 @@ void dispatchEngine(std::vector<Driver>& drivers, int grid_size) {
         } 
 
         if (!driver_found) {
+            logThreadEvent("UNLOCK driver_mutex -> 0 available drivers for " + req.rider_id + ". Re-queueing after 1000ms sleep");
             {
                 std::lock_guard<std::mutex> lock(console_mutex);
                 std::cout << "[" << getCurrentTimestamp() << "] No drivers available for rider " << req.rider_id << ", will retry\n";
@@ -249,10 +284,15 @@ void dispatchEngine(std::vector<Driver>& drivers, int grid_size) {
         double per_unit_rate = 2.0;
         double fare = (base_fare + min_dist * per_unit_rate) * surge_multiplier;
 
+        std::stringstream dist_ss;
+        dist_ss << std::fixed << std::setprecision(2) << min_dist;
+
+        logThreadEvent("MATCH SUCCESS -> " + best_driver->id + " assigned to " + req.rider_id + " (dist: " + dist_ss.str() + ") | UNLOCK driver_mutex");
+
         {
             std::lock_guard<std::mutex> lock(console_mutex);
             std::cout << "[" << getCurrentTimestamp() << "] Match: " << best_driver->id << " assigned to " << req.rider_id 
-                      << " | Dist: " << std::fixed << std::setprecision(2) << min_dist 
+                      << " | Dist: " << dist_ss.str() 
                       << " | Fare: $" << fare;
             if (surge_multiplier > 1.0) std::cout << " (Surge " << surge_multiplier << "x)";
             std::cout << "\n";
@@ -279,15 +319,16 @@ void dispatchEngine(std::vector<Driver>& drivers, int grid_size) {
         /*
          * (a) How the dispatcher fix keeps it non-blocking:
          * Previously, the dispatcher thread itself might sleep to simulate the ride. Now, we spawn a 
-         * lightweight detached std::thread whose ONLY job is to sleep for 4 seconds and then safely 
+         * lightweight detached std::thread whose ONLY job is to sleep for 2.5 seconds and then safely 
          * restore the driver to AVAILABLE. The dispatcher immediately loops back to `pop()` the next 
          * request, remaining highly responsive and never getting stuck waiting for a ride to finish.
          */
         std::thread([best_driver]() {
-            std::this_thread::sleep_for(std::chrono::seconds(4)); 
+            std::this_thread::sleep_for(std::chrono::milliseconds(2500)); // 2.5s ride duration
             if (simulation_running) {
                 std::lock_guard<std::mutex> lock(driver_mutex);
                 best_driver->status = DriverStatus::AVAILABLE;
+                logThreadEvent("THREAD async ride complete -> " + best_driver->id + " restored to AVAILABLE");
             }
         }).detach();
     }
@@ -300,7 +341,7 @@ void simulateDriver(Driver& driver, int grid_size) {
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_int_distribution<> grid_dist(0, grid_size - 1);
-    std::uniform_int_distribution<> time_dist(1000, 2000); 
+    std::uniform_int_distribution<> time_dist(1500, 3000); 
 
     while (simulation_running) {
         std::this_thread::sleep_for(std::chrono::milliseconds(time_dist(gen)));
@@ -327,6 +368,7 @@ json getStateJson(const std::vector<Driver>& drivers, int grid_size) {
     state["riders"] = json::array();
     state["surge_zones"] = json::array();
     state["recent_matches"] = json::array();
+    state["thread_logs"] = json::array();
 
     int active_drivers = 0;
     
@@ -417,6 +459,13 @@ json getStateJson(const std::vector<Driver>& drivers, int grid_size) {
         }
     }
 
+    {
+        std::lock_guard<std::mutex> lock(logs_mutex);
+        for (const auto& log : thread_logs) {
+            state["thread_logs"].push_back(log);
+        }
+    }
+
     return state;
 }
 
@@ -468,6 +517,7 @@ int main() {
     }
 
     std::cout << "Starting RideSync Multi-threaded Dispatch Engine...\n";
+    logThreadEvent("INITIALIZE -> Spawned 5 Driver threads, 8 Rider threads, and 1 Dispatcher thread");
     
     // Spawn driver threads
     for (int i = 0; i < NUM_DRIVERS; ++i) {

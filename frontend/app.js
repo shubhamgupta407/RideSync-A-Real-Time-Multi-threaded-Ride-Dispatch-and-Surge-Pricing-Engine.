@@ -64,6 +64,8 @@ const surgeZonesLayer = document.getElementById('surgeZonesLayer');
 const ridersLayer = document.getElementById('ridersLayer');
 const driversLayer = document.getElementById('driversLayer');
 const mapTooltip = document.getElementById('mapTooltip');
+const laserLayer = document.getElementById('laserLayer');
+const threadLogsContainer = document.getElementById('threadLogsContainer');
 
 // Error Overlay
 const mapErrorOverlay = document.getElementById('mapErrorOverlay');
@@ -370,6 +372,12 @@ function updateDashboard(data) {
 
   // 5. Populate activity matched feed
   renderActivityFeed(data.recent_matches || []);
+
+  // 6. Stream live C++ multithreaded engine logs
+  renderThreadLogs(data.thread_logs || []);
+
+  // 7. Flash glowing laser lines across map for Euclidean matches
+  triggerLaserMatches(data.recent_matches || [], data.drivers || [], data.riders || []);
 }
 
 // Updates numeric cards at the top
@@ -713,6 +721,91 @@ function renderActivityFeed(matches) {
     }
   });
 }
+
+// Stream real-time C++ mutex and thread logs into terminal box
+const seenLogEntries = new Set();
+function renderThreadLogs(logs) {
+  if (!threadLogsContainer || !logs || logs.length === 0) return;
+  
+  const sorted = [...logs].reverse();
+  let added = false;
+  
+  sorted.forEach(logText => {
+    if (!seenLogEntries.has(logText)) {
+      seenLogEntries.add(logText);
+      added = true;
+      
+      const row = document.createElement('div');
+      row.style.borderBottom = '1px solid rgba(255,255,255,0.04)';
+      row.style.paddingBottom = '3px';
+      row.style.marginBottom = '2px';
+      
+      let html = logText
+        .replace(/(LOCK|UNLOCK|QUEUE push|MATCH SUCCESS|THREAD async ride complete|INITIALIZE)/g, '<strong style="color: #4ade80;">$1</strong>')
+        .replace(/(driver_mutex|queue_mutex|zone_mutex|pending_riders_mutex)/g, '<code style="color: #f43f5e; background: rgba(244,63,94,0.15); padding: 0 4px; border-radius: 3px; font-size: 0.7rem;">$1</code>')
+        .replace(/(Euclidean formula|√\(\(Δx\)² \+ \(Δy\)²\))/g, '<span style="color: #fde047;">$1</span>')
+        .replace(/(R\d+|D\d+)/g, '<strong style="color: #38bdf8;">$1</strong>');
+        
+      row.innerHTML = html;
+      threadLogsContainer.appendChild(row);
+      
+      if (threadLogsContainer.children.length > 30) {
+        if (threadLogsContainer.firstElementChild) {
+          threadLogsContainer.firstElementChild.remove();
+        }
+      }
+    }
+  });
+  
+  if (added) {
+    threadLogsContainer.scrollTop = threadLogsContainer.scrollHeight;
+  }
+}
+
+// Flash neon laser arrows connecting matched drivers to riders
+function triggerLaserMatches(matches, drivers, riders) {
+  if (!laserLayer || !matches || matches.length === 0) return;
+  
+  const latestMatch = matches[0];
+  const matchKey = `laser_${latestMatch.driver_id}_${latestMatch.rider_id}_${latestMatch.timestamp}`;
+  
+  if (!state.seenMatchKeys.has(matchKey)) {
+    state.seenMatchKeys.add(matchKey);
+    
+    const driver = drivers.find(d => d.id === latestMatch.driver_id);
+    const rider = riders.find(r => r.id === latestMatch.rider_id);
+    
+    if (driver && rider) {
+      const dPos = getPercentPosition(driver.x, driver.y);
+      const rPos = getPercentPosition(rider.x, rider.y);
+      drawLaserLine(dPos.left, dPos.top, rPos.left, rPos.top);
+    }
+  }
+}
+
+function drawLaserLine(x1Pct, y1Pct, x2Pct, y2Pct) {
+  if (!laserLayer) return;
+  
+  const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+  line.setAttribute('x1', `${x1Pct}%`);
+  line.setAttribute('y1', `${y1Pct}%`);
+  line.setAttribute('x2', `${x2Pct}%`);
+  line.setAttribute('y2', `${y2Pct}%`);
+  line.setAttribute('stroke', '#00f2fe');
+  line.setAttribute('stroke-width', '3');
+  line.setAttribute('stroke-dasharray', '6 4');
+  line.style.filter = 'drop-shadow(0 0 8px #00f2fe)';
+  line.style.opacity = '1';
+  line.style.transition = 'opacity 1.5s ease-out';
+  
+  laserLayer.appendChild(line);
+  
+  setTimeout(() => {
+    line.style.opacity = '0';
+    setTimeout(() => line.remove(), 1500);
+  }, 800);
+}
+
 
 
 // ==========================================

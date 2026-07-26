@@ -124,6 +124,31 @@
       <!-- Left main column: Stats bar + Grid map -->
       <div class="main-column">
         
+        <!-- C++ Architecture Explanation Banner for Viva/Demo -->
+        <div style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border: 1px solid #334155; border-radius: 0.75rem; padding: 1rem 1.25rem; margin-bottom: 1rem; color: #f8fafc; box-shadow: var(--shadow-sm); display: flex; flex-direction: column; gap: 0.5rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+            <div style="font-weight: 600; font-size: 0.95rem; display: flex; align-items: center; gap: 0.5rem;">
+              <span style="background: #3b82f6; width: 8px; height: 8px; border-radius: 50%; display: inline-block;"></span>
+              How This C++ Architecture Works
+            </div>
+            <span style="font-size: 0.7rem; background: #1e3a8a; color: #93c5fd; padding: 0.2rem 0.6rem; border-radius: 999px; font-family: monospace;">std::thread + mutex + condition_variable</span>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.75rem; font-size: 0.75rem; color: #cbd5e1; margin-top: 0.25rem;">
+            <div style="background: rgba(255,255,255,0.03); padding: 0.5rem; border-radius: 0.5rem; border: 1px solid rgba(255,255,255,0.05);">
+              <strong style="color: #38bdf8; display: block; margin-bottom: 0.2rem;">1. Thread-Safe Queue</strong>
+              Rider requests wait in a locked C++ queue. A <code style="color: #f43f5e;">condition_variable</code> wakes the dispatcher instantly without CPU busy-waiting.
+            </div>
+            <div style="background: rgba(255,255,255,0.03); padding: 0.5rem; border-radius: 0.5rem; border: 1px solid rgba(255,255,255,0.05);">
+              <strong style="color: #4ade80; display: block; margin-bottom: 0.2rem;">2. Euclidean Matching</strong>
+              When a ride is requested, the dispatcher locks <code style="color: #f43f5e;">driver_mutex</code> and calculates shortest straight-line distance <code style="color: #fde047;">√(Δx² + Δy²)</code>.
+            </div>
+            <div style="background: rgba(255,255,255,0.03); padding: 0.5rem; border-radius: 0.5rem; border: 1px solid rgba(255,255,255,0.05);">
+              <strong style="color: #fb923c; display: block; margin-bottom: 0.2rem;">3. Dynamic Surge Zones</strong>
+              The grid is divided into zones. If pending requests exceed available drivers by ≥1, fares multiply (1.5x - 2.0x) automatically.
+            </div>
+          </div>
+        </div>
+
         <!-- Stats cards -->
         <div class="stats-row">
           <div class="stat-card">
@@ -211,6 +236,7 @@
 
             <!-- Active elements layers -->
             <div id="surgeZonesLayer"></div>
+            <svg id="laserLayer" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 15; overflow: visible;"></svg>
             <div id="ridersLayer"></div>
             <div id="driversLayer"></div>
 
@@ -247,6 +273,20 @@
               </div>
             </div>
 
+          </div>
+        </div>
+
+        <!-- Live C++ Multithreaded Engine & Mutex Activity Monitor -->
+        <div class="monitor-panel" style="margin-top: 1rem; background: #0f172a; border-radius: 0.75rem; border: 1px solid #334155; padding: 1rem; color: #38bdf8; font-family: monospace; box-shadow: var(--shadow-sm);">
+          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1e293b; padding-bottom: 0.5rem; margin-bottom: 0.5rem;">
+            <span style="font-weight: 600; color: #f8fafc; font-size: 0.85rem; display: flex; align-items: center; gap: 0.4rem;">
+              <span style="display: inline-block; width: 6px; height: 6px; background: #22c55e; border-radius: 50%; box-shadow: 0 0 8px #22c55e;"></span>
+              ⚡ Live C++ Multithreaded Engine & Mutex Monitor
+            </span>
+            <span style="font-size: 0.68rem; background: #0369a1; color: white; padding: 0.15rem 0.5rem; border-radius: 999px;">C++17 <mutex> & <condition_variable></span>
+          </div>
+          <div id="threadLogsContainer" style="max-height: 135px; overflow-y: auto; font-size: 0.75rem; line-height: 1.6; display: flex; flex-direction: column; gap: 0.25rem;">
+            <div style="color: #64748b;">Connecting to live C++ backend thread stream...</div>
           </div>
         </div>
 
