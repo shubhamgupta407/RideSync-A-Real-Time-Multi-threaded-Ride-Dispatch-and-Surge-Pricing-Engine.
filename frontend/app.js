@@ -190,24 +190,26 @@ function drawCityBlocks() {
       // Waterway canal running down
       if (x === 1 && y >= 2 && y <= rows - 4) {
         blockClass = 'water';
-        if (y === Math.floor(rows/2)) labelText = 'East River';
+        if (y === Math.floor(rows/2)) labelText = '🌊 East River Canal';
       }
       // Green Parks
       else if (x >= cols - 4 && x <= cols - 3 && y >= rows - 5 && y <= rows - 4) {
         blockClass = 'park';
-        if (x === cols - 4 && y === rows - 4) labelText = 'Central Park';
+        if (x === cols - 4 && y === rows - 4) labelText = '🌲 Central Park';
       }
       // Commercial Skyscrapers
-      else if (rand > 0.78) {
+      else if (rand > 0.76) {
         blockClass = 'commercial';
-        if (rand > 0.94) labelText = 'Office HQ';
-        else if (rand > 0.88) labelText = 'Shopping';
-        else labelText = 'District';
+        if (rand > 0.94) labelText = '🏢 Tech Hub HQ';
+        else if (rand > 0.88) labelText = '🛍️ Metro Plaza';
+        else if (rand > 0.82) labelText = '🏥 City Hospital';
+        else labelText = '🏬 Financial Ctr';
       }
       // Standard Residential blocks
       else {
         blockClass = 'residential';
-        if (rand < 0.1) labelText = 'Apartments';
+        if (rand < 0.12) labelText = '🏘️ Luxury Suites';
+        else if (rand > 0.65) labelText = '🏡 Metro Apts';
       }
 
       block.className = `city-block ${blockClass}`;

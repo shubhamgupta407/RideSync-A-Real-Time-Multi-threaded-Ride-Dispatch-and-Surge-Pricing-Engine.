@@ -349,13 +349,13 @@ header {
 /* Map Grid Outer Box */
 .map-canvas-container {
   width: 100%;
-  aspect-ratio: 1; /* Keep it strictly square */
+  height: 480px; /* Controlled height so no vertical scrolling is ever needed */
   position: relative;
-  background-color: #cbd5e1; /* Street concrete gray background */
-  border: 1px solid var(--border-color);
-  border-radius: 0.5rem;
+  background-color: #0b1329; /* Deep GPS Night Navigation road background */
+  border: 1px solid #334155;
+  border-radius: 0.75rem;
   overflow: hidden;
-  box-shadow: inset 0 2px 5px rgba(15, 23, 42, 0.08);
+  box-shadow: inset 0 0 25px rgba(0, 0, 0, 0.7), 0 10px 20px -5px rgba(0,0,0,0.2);
 }
 
 /* Connection Error State overlay */
@@ -365,8 +365,8 @@ header {
   left: 0;
   width: 100%;
   height: 100%;
-  background-color: rgba(248, 250, 252, 0.9);
-  backdrop-filter: blur(4px);
+  background-color: rgba(15, 23, 42, 0.92);
+  backdrop-filter: blur(6px);
   z-index: 10;
   display: flex;
   flex-direction: column;
@@ -388,16 +388,16 @@ header {
 .error-title {
   font-size: 1.125rem;
   font-weight: 600;
-  color: #b91c1c;
+  color: #f87171;
 }
 
 .error-message {
   font-size: 0.875rem;
-  color: var(--text-secondary);
+  color: #cbd5e1;
   max-width: 320px;
 }
 
-/* Grid drawing - Styled as road lines */
+/* Grid drawing - Styled as illuminated dark navigation road lines */
 .grid-overlay {
   position: absolute;
   top: 0;
@@ -407,30 +407,29 @@ header {
   pointer-events: none;
   background-size: calc(100% / (var(--grid-columns) - 1)) calc(100% / (var(--grid-rows) - 1));
   background-image: 
-    linear-gradient(to right, rgba(255, 255, 255, 0.55) 2px, transparent 2px),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.55) 2px, transparent 2px);
-  /* Yellow dashes effect on road centerlines */
-  border: none;
+    linear-gradient(to right, rgba(251, 191, 36, 0.4) 1px, rgba(255, 255, 255, 0.12) 2px, transparent 3px),
+    linear-gradient(to bottom, rgba(251, 191, 36, 0.4) 1px, rgba(255, 255, 255, 0.12) 2px, transparent 3px);
   z-index: 2; /* Sits above blocks, below vehicles */
 }
 
 /* Grid Labels */
 .grid-label-x, .grid-label-y {
   position: absolute;
-  font-size: 0.625rem;
-  font-weight: 600;
-  color: #64748b;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #38bdf8;
+  text-shadow: 0 0 4px #0284c7;
   pointer-events: none;
   z-index: 12;
 }
 
-/* City Blocks - Manhattan Style Grid */
+/* City Blocks - Realistic 3D GPS Dark Mode Building Footprints */
 .city-block {
   position: absolute;
-  background-color: #f1f5f9;
-  border: 1px solid #e2e8f0;
+  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+  border: 1px solid #334155;
   border-radius: 6px;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05), inset 0 1px 1px rgba(255, 255, 255, 0.8);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.15);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -442,34 +441,40 @@ header {
 }
 
 .city-block.park {
-  background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
-  border-color: #86efac;
+  background: linear-gradient(135deg, #052e16 0%, #064e3b 100%);
+  border-color: #10b981;
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.15);
 }
 
 .city-block.water {
-  background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%);
-  border-color: #7dd3fc;
+  background: linear-gradient(135deg, #082f49 0%, #0c4a6e 100%);
+  border-color: #0ea5e9;
+  box-shadow: 0 0 12px rgba(14, 165, 233, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.15);
 }
 
 .city-block.commercial {
-  background-color: #f8fafc;
-  border-color: #cbd5e1;
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  border-color: #38bdf8;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 
 .city-block.residential {
-  background-color: #fcfcfd;
-  border-color: #e2e8f0;
+  background: linear-gradient(135deg, #18181b 0%, #27272a 100%);
+  border-color: #52525b;
 }
 
 .city-block-label {
-  font-size: 0.5rem;
-  font-weight: 600;
-  color: #94a3b8;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  opacity: 0.8;
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #f8fafc;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.9);
+  letter-spacing: 0.03em;
+  opacity: 0.95;
   text-align: center;
-  padding: 0.25rem;
+  padding: 0.2rem 0.4rem;
+  background: rgba(0,0,0,0.4);
+  border-radius: 4px;
+  border: 1px solid rgba(255,255,255,0.1);
 }
 
 /* --- Map Elements --- */

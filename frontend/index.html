@@ -276,45 +276,47 @@
           </div>
         </div>
 
+      </div> <!-- End main-column -->
+
+      <!-- Right sidebar column: Monitor + Activity Feed stacked cleanly -->
+      <div class="sidebar-column" style="display: flex; flex-direction: column; gap: 1rem; height: 100%;">
         <!-- Live C++ Multithreaded Engine & Mutex Activity Monitor -->
-        <div class="monitor-panel" style="margin-top: 1rem; background: #0f172a; border-radius: 0.75rem; border: 1px solid #334155; padding: 1rem; color: #38bdf8; font-family: monospace; box-shadow: var(--shadow-sm);">
-          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1e293b; padding-bottom: 0.5rem; margin-bottom: 0.5rem;">
+        <div class="monitor-panel" style="background: #0f172a; border-radius: 0.75rem; border: 1px solid #334155; padding: 1rem; color: #38bdf8; font-family: monospace; box-shadow: var(--shadow-sm); display: flex; flex-direction: column; height: 260px; flex-shrink: 0;">
+          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1e293b; padding-bottom: 0.5rem; margin-bottom: 0.5rem; flex-shrink: 0;">
             <span style="font-weight: 600; color: #f8fafc; font-size: 0.85rem; display: flex; align-items: center; gap: 0.4rem;">
               <span style="display: inline-block; width: 6px; height: 6px; background: #22c55e; border-radius: 50%; box-shadow: 0 0 8px #22c55e;"></span>
-              ⚡ Live C++ Multithreaded Engine & Mutex Monitor
+              ⚡ Live C++ Mutex Monitor
             </span>
-            <span style="font-size: 0.68rem; background: #0369a1; color: white; padding: 0.15rem 0.5rem; border-radius: 999px;">C++17 <mutex> & <condition_variable></span>
+            <span style="font-size: 0.68rem; background: #0369a1; color: white; padding: 0.15rem 0.5rem; border-radius: 999px;">std::mutex</span>
           </div>
-          <div id="threadLogsContainer" style="max-height: 135px; overflow-y: auto; font-size: 0.75rem; line-height: 1.6; display: flex; flex-direction: column; gap: 0.25rem;">
+          <div id="threadLogsContainer" style="overflow-y: auto; font-size: 0.72rem; line-height: 1.55; display: flex; flex-direction: column; gap: 0.25rem; flex-grow: 1;">
             <div style="color: #64748b;">Connecting to live C++ backend thread stream...</div>
           </div>
         </div>
 
-      </div>
-
-      <!-- Right column: Live Activity Feed -->
-      <div class="feed-panel">
-        <div class="feed-header">
-          <h2 class="feed-title">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" style="color: var(--text-secondary);">
-              <use href="#icon-clock"/>
-            </svg>
-            Activity Feed
-          </h2>
-          <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 500;" id="feedMatchedCount">0 matches</span>
-        </div>
-        <div id="feedContainer" class="feed-container">
-          <!-- Dynamically populated match cards -->
-          <div id="feedEmptyState" style="text-align: center; color: var(--text-muted); font-size: 0.8125rem; margin: auto 0; padding: 2rem;">
-            Waiting for matches...
+        <!-- Right column: Live Activity Feed -->
+        <div class="feed-panel" style="flex-grow: 1; height: calc(100% - 276px); max-height: 400px; overflow: hidden;">
+          <div class="feed-header">
+            <h2 class="feed-title">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" style="color: var(--text-secondary);">
+                <use href="#icon-clock"/>
+              </svg>
+              Activity Feed
+            </h2>
+            <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 500;" id="feedMatchedCount">0 matches</span>
+          </div>
+          <div id="feedContainer" class="feed-container">
+            <!-- Dynamically populated match cards -->
+            <div id="feedEmptyState" style="text-align: center; color: var(--text-muted); font-size: 0.8125rem; margin: auto 0; padding: 2rem;">
+              Waiting for matches...
+            </div>
           </div>
         </div>
-      </div>
-
+      </div> <!-- End sidebar-column -->
     </div>
   </div>
 
   <!-- JavaScript file -->
-  <script src="app.js?v=final"></script>
+  <script src="app.js?v=cityview"></script>
 </body>
 </html>
