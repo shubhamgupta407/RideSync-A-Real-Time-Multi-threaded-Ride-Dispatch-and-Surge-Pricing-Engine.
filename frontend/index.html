@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <!-- Link stylesheet with cache buster -->
-  <link rel="stylesheet" href="styles.css?v=realcity">
+  <link rel="stylesheet" href="styles.css?v=mapfix2">
 </head>
 <body>
 
@@ -229,7 +229,9 @@
           </div>
 
           <!-- Real Interactive Geographic City Map (Leaflet - Manhattan NYC) -->
-          <div id="realCityMapContainer" style="width: 100%; height: 480px; border-radius: 0.75rem; border: 1px solid #334155; overflow: hidden; position: relative; z-index: 1; box-shadow: inset 0 0 20px rgba(0,0,0,0.5);"></div>
+          <div id="realCityMapContainer" style="width: 100%; height: 480px; min-height: 480px; border-radius: 0.75rem; border: 1px solid #334155; overflow: hidden; position: relative; z-index: 1; background-color: #0b1329 !important; box-shadow: inset 0 0 20px rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; color: #38bdf8; font-family: monospace;">
+            <span>🗺️ Initializing Live Manhattan GPS Street Map...</span>
+          </div>
 
           <!-- 12x12 Euclidean Algorithm Grid Matrix (Hidden by default in favor of Real Map) -->
           <div class="map-canvas-container" id="mapCanvasContainer" style="display: none;">
@@ -325,6 +327,6 @@
   </div>
 
   <!-- JavaScript file -->
-  <script src="app.js?v=cityview"></script>
+  <script src="app.js?v=mapfix2"></script>
 </body>
 </html>

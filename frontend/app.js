@@ -379,16 +379,19 @@ function initLeafletMap() {
     attributionControl: false
   }).setView([40.7580, -73.9855], 14);
 
-  // CartoDB Dark Matter base map tiles (Sleek Uber dark dispatch mode)
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-    maxZoom: 19,
-    subdomains: 'abcd'
+  // CartoDB Dark Matter base map tiles (Direct CDN url without {s} or {r} for 100% Safari compatibility)
+  L.tileLayer('https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png', {
+    maxZoom: 19
   }).addTo(leafletMap);
 
   leafletSurgeLayer = L.layerGroup().addTo(leafletMap);
   leafletLinesLayer = L.layerGroup().addTo(leafletMap);
   leafletDriversLayer = L.layerGroup().addTo(leafletMap);
   leafletRidersLayer = L.layerGroup().addTo(leafletMap);
+
+  // Ensure map container renders properly after DOM layout calculation
+  setTimeout(() => { if (leafletMap) leafletMap.invalidateSize(); }, 250);
+  setTimeout(() => { if (leafletMap) leafletMap.invalidateSize(); }, 1000);
 
   // View switch button listeners
   if (viewBtnRealMap && viewBtnMatrix) {
@@ -400,7 +403,7 @@ function initLeafletMap() {
       viewBtnRealMap.style.color = '#38bdf8';
       viewBtnMatrix.style.background = 'transparent';
       viewBtnMatrix.style.color = '#64748b';
-      setTimeout(() => leafletMap.invalidateSize(), 100);
+      setTimeout(() => leafletMap.invalidateSize(), 50);
     });
 
     viewBtnMatrix.addEventListener('click', () => {
@@ -431,6 +434,8 @@ function gridToLatLng(x, y) {
 // Update the real geographic Leaflet map with C++ multithreaded simulation data
 function updateLeafletMap(data) {
   if (!leafletMap || typeof L === 'undefined' || currentViewMode !== 'realmap') return;
+
+  leafletMap.invalidateSize();
 
   // Clear previous frame dynamic layers
   if (leafletSurgeLayer) leafletSurgeLayer.clearLayers();
