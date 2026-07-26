@@ -82,7 +82,6 @@ const feedMatchedCount = document.getElementById('feedMatchedCount');
 const realCityMapContainer = document.getElementById('realCityMapContainer');
 const viewBtnRealMap = document.getElementById('viewBtnRealMap');
 const viewBtnMatrix = document.getElementById('viewBtnMatrix');
-const mapCanvasContainer = document.getElementById('mapCanvasContainer');
 let leafletMap = null;
 let leafletDriversLayer = null;
 let leafletRidersLayer = null;
