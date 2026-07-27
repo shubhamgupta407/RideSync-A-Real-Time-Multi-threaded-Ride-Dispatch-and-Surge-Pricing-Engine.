@@ -129,107 +129,90 @@ function applyGridCSS() {
   document.documentElement.style.setProperty('--grid-rows', config.gridRows);
 }
 
-// Draw X & Y grid coordinate labels directly aligned to street centerlines
+// Draw clean X & Y grid coordinate numbers along axes (no overlapping text)
 function drawGridCoordinateLabels() {
   gridLabels.innerHTML = '';
   const cols = config.gridCols;
   const rows = config.gridRows;
 
-  const avenues = ["West Side", "10th Ave", "8th Ave", "Broadway", "5th Ave", "Madison", "Lexington", "3rd Ave", "1st Ave", "FDR Dr", "East River", "Queens"];
-  const streets = ["Wall St", "Canal St", "Houston", "14th St", "23rd St", "34th St", "42nd St", "50th St", "59th St", "72nd St", "86th St", "96th St"];
-
-  // Draw X axis labels (bottom border)
+  // Draw X axis labels along top edge
   for (let x = 0; x < cols; x++) {
     const label = document.createElement('div');
     label.className = 'grid-label-x';
-    label.innerText = `${x}: ${avenues[x % avenues.length]}`;
+    label.innerText = x;
     label.style.left = `calc((100% / ${cols - 1}) * ${x})`;
-    label.style.bottom = '4px';
+    label.style.top = '4px';
     label.style.transform = 'translateX(-50%)';
-    label.style.fontSize = '0.65rem';
+    label.style.fontSize = '0.7rem';
     label.style.fontWeight = '700';
     label.style.color = '#38bdf8';
-    label.style.background = 'rgba(15, 23, 42, 0.85)';
-    label.style.padding = '2px 6px';
-    label.style.borderRadius = '4px';
+    label.style.background = 'rgba(15, 23, 42, 0.9)';
+    label.style.padding = '1px 5px';
+    label.style.borderRadius = '3px';
     label.style.border = '1px solid #334155';
-    label.style.whiteSpace = 'nowrap';
     label.style.zIndex = '15';
     gridLabels.appendChild(label);
   }
 
-  // Draw Y axis labels (left border)
+  // Draw Y axis labels along left edge
   for (let y = 0; y < rows; y++) {
     const label = document.createElement('div');
     label.className = 'grid-label-y';
-    label.innerText = `${y}: ${streets[y % streets.length]}`;
+    label.innerText = y;
     label.style.bottom = `calc((100% / ${rows - 1}) * ${y})`;
-    label.style.left = '6px';
+    label.style.left = '4px';
     label.style.transform = 'translateY(50%)';
-    label.style.fontSize = '0.65rem';
+    label.style.fontSize = '0.7rem';
     label.style.fontWeight = '700';
     label.style.color = '#f472b6';
-    label.style.background = 'rgba(15, 23, 42, 0.85)';
-    label.style.padding = '2px 6px';
-    label.style.borderRadius = '4px';
+    label.style.background = 'rgba(15, 23, 42, 0.9)';
+    label.style.padding = '1px 5px';
+    label.style.borderRadius = '3px';
     label.style.border = '1px solid #334155';
-    label.style.whiteSpace = 'nowrap';
     label.style.zIndex = '15';
     gridLabels.appendChild(label);
   }
 }
 
-// Generate the underlying city blocks (buildings, parks, rivers) in grid spaces
+// Generate the clean underlying city blocks (buildings, parks, rivers) without clutter
 function drawCityBlocks() {
   cityBlocksLayer.innerHTML = '';
   const cols = config.gridCols;
   const rows = config.gridRows;
 
-  // Seeded deterministic random generator to maintain consistent urban designs
-  function getSeededRandom(x, y) {
-    const sx = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
-    return sx - Math.floor(sx);
-  }
-
-  // City blocks sit between the grid/road lines, so there are (cols-1)*(rows-1) blocks.
   for (let x = 0; x < cols - 1; x++) {
     for (let y = 0; y < rows - 1; y++) {
       const block = document.createElement('div');
       
-      // Layout dimensions matching cell margins to represent road sizes
+      // Layout dimensions matching cell margins to represent clean urban streets
       block.style.left = `calc(((100% / ${cols - 1}) * ${x}) + 4px)`;
       block.style.top = `calc(((100% / ${rows - 1}) * (${rows - 2 - y})) + 4px)`;
       block.style.width = `calc((100% / ${cols - 1}) - 8px)`;
       block.style.height = `calc((100% / ${rows - 1}) - 8px)`;
 
-      const rand = getSeededRandom(x, y);
       let blockClass = 'residential';
       let labelText = '';
 
-      // Create a nice organic layout
-      // Waterway canal running down
+      // Only highlight 4 iconic Manhattan landmarks for zero-clutter elegance
       if (x === 1 && y >= 2 && y <= rows - 4) {
         blockClass = 'water';
         if (y === Math.floor(rows/2)) labelText = '🌊 East River Canal';
       }
-      // Green Parks
       else if (x >= cols - 4 && x <= cols - 3 && y >= rows - 5 && y <= rows - 4) {
         blockClass = 'park';
         if (x === cols - 4 && y === rows - 4) labelText = '🌲 Central Park';
       }
-      // Commercial Skyscrapers
-      else if (rand > 0.76) {
+      else if (x === 3 && y === 2) {
         blockClass = 'commercial';
-        if (rand > 0.94) labelText = '🏢 Tech Hub HQ';
-        else if (rand > 0.88) labelText = '🛍️ Metro Plaza';
-        else if (rand > 0.82) labelText = '🏥 City Hospital';
-        else labelText = '🏬 Financial Ctr';
+        labelText = '🏢 Financial District';
       }
-      // Standard Residential blocks
+      else if (x === 5 && y === 6) {
+        blockClass = 'commercial';
+        labelText = '🎭 Times Square / Midtown';
+      }
       else {
+        // Standard clean tactical dark blocks (NO repeated text emojis)
         blockClass = 'residential';
-        if (rand < 0.12) labelText = '🏘️ Luxury Suites';
-        else if (rand > 0.65) labelText = '🏡 Metro Apts';
       }
 
       block.className = `city-block ${blockClass}`;
