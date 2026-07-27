@@ -42,11 +42,6 @@ const toggleSettingsBtn = document.getElementById('toggleSettingsBtn');
 const toggleSimulationBtn = document.getElementById('toggleSimulationBtn');
 const settingsDrawer = document.getElementById('settingsDrawer');
 const saveSettingsBtn = document.getElementById('saveSettingsBtn');
-const toggleArchBtn = document.getElementById('toggleArchBtn');
-const archModal = document.getElementById('archModal');
-const closeArchModalBtn = document.getElementById('closeArchModalBtn');
-const archTabBtns = document.querySelectorAll('.arch-tab-btn');
-const archPanes = document.querySelectorAll('.arch-pane');
 
 // Config Form fields
 const inputDataSource = document.getElementById('dataSource');
@@ -304,35 +299,6 @@ function setupEventListeners() {
   toggleSettingsBtn.addEventListener('click', () => {
     settingsDrawer.classList.toggle('open');
   });
-
-  // Toggle Architecture Modal
-  if (toggleArchBtn && archModal) {
-    toggleArchBtn.addEventListener('click', () => {
-      archModal.classList.add('open');
-    });
-  }
-  if (closeArchModalBtn && archModal) {
-    closeArchModalBtn.addEventListener('click', () => {
-      archModal.classList.remove('open');
-    });
-  }
-  if (archModal) {
-    archModal.addEventListener('click', (e) => {
-      if (e.target === archModal) archModal.classList.remove('open');
-    });
-  }
-  if (archTabBtns.length > 0) {
-    archTabBtns.forEach(btn => {
-      btn.addEventListener('click', () => {
-        archTabBtns.forEach(b => b.classList.remove('active'));
-        archPanes.forEach(p => p.classList.remove('active'));
-        btn.classList.add('active');
-        const targetId = btn.getAttribute('data-tab');
-        const targetPane = document.getElementById(targetId);
-        if (targetPane) targetPane.classList.add('active');
-      });
-    });
-  }
 
   // Source drop-down change toggle
   inputDataSource.addEventListener('change', () => {
