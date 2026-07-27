@@ -99,7 +99,7 @@ std::string getShortTime() {
 void logThreadEvent(const std::string& msg) {
     std::lock_guard<std::mutex> lock(logs_mutex);
     thread_logs.push_front("[" + getShortTime() + "] " + msg);
-    if (thread_logs.size() > 20) {
+    if (thread_logs.size() > 50) {
         thread_logs.pop_back();
     }
 }
