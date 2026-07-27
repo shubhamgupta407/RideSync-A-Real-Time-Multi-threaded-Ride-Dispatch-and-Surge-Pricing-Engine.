@@ -156,17 +156,6 @@ public:
         req = queue.front();
         queue.pop();
         
-        {
-            // Safely remove popped request from our JSON view tracker
-            std::lock_guard<std::mutex> plock(pending_riders_mutex);
-            for (auto it = pending_riders.begin(); it != pending_riders.end(); ++it) {
-                if (it->rider_id == req.rider_id) {
-                    pending_riders.erase(it);
-                    break;
-                }
-            }
-        }
-        
         return true;
     }
     
@@ -212,6 +201,15 @@ void dispatchEngine(std::vector<Driver>& drivers, int grid_size) {
         if (!ride_queue.pop(req)) {
             break; 
         }
+
+        /*
+         * DELIBERATE SIMULATION DELAY (1500 ms):
+         * This delay exists specifically to make the "pending" state demoable and visible on the map and KPI dashboard.
+         * During this window, the rider remains in `pending_riders`, so the frontend polling cycle captures their pickup
+         * location as a red pin and counts them in `pending_requests` before nearest-driver matching begins.
+         * Note: This is a deliberate visual simulation choice for live presentations, not a reflection of real-world dispatch latency.
+         */
+        std::this_thread::sleep_for(std::chrono::milliseconds(1500));
 
         int zone_id = getZoneId(req.pickup_x, req.pickup_y, grid_size);
         
@@ -313,6 +311,17 @@ void dispatchEngine(std::vector<Driver>& drivers, int grid_size) {
             recent_matches.push_front(record);
             if (recent_matches.size() > 20) {
                 recent_matches.pop_back();
+            }
+        }
+
+        {
+            // Safely remove matched request from our JSON view tracker now that a driver is assigned
+            std::lock_guard<std::mutex> plock(pending_riders_mutex);
+            for (auto it = pending_riders.begin(); it != pending_riders.end(); ++it) {
+                if (it->rider_id == req.rider_id) {
+                    pending_riders.erase(it);
+                    break;
+                }
             }
         }
 
