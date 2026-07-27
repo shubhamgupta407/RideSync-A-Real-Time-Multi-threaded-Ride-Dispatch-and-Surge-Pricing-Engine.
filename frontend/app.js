@@ -378,6 +378,8 @@ function restartPollingLoop() {
   startPollingLoop();
 }
 
+let failedPollCount = 0;
+
 function triggerPoll() {
   if (isSimulationPaused) return;
 
@@ -396,12 +398,17 @@ function triggerPoll() {
         return response.json();
       })
       .then(data => {
+        failedPollCount = 0;
         setConnectionState('connected');
         updateDashboard(data);
       })
       .catch(err => {
         console.error('Backend poll failure:', err);
-        setConnectionState('disconnected');
+        failedPollCount++;
+        // Only show full-screen disconnection error if 3 consecutive polls fail (prevents flickering during cloud network jitter)
+        if (failedPollCount >= 3) {
+          setConnectionState('disconnected');
+        }
       });
   }
 }
