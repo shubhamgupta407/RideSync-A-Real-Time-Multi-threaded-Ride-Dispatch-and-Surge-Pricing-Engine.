@@ -181,7 +181,7 @@ void simulateRider(int id, int grid_size) {
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_int_distribution<> grid_dist(0, grid_size - 1);
-    std::uniform_int_distribution<> time_dist(5000, 10000); // 5 to 10s for balanced UI flow
+    std::uniform_int_distribution<> time_dist(15000, 25000); // 15 to 25s for calm UI flow
 
     std::string rider_id = "R" + std::to_string(id);
 
@@ -504,7 +504,7 @@ void runHttpServer(std::vector<Driver>& drivers, int grid_size) {
 // ------------------------------------------------------------------
 int main() {
     const int NUM_DRIVERS = 5;
-    const int NUM_RIDERS = 8; 
+    const int NUM_RIDERS = 3; 
     const int GRID_SIZE = 10;
     const int SIMULATION_DURATION_SECONDS = 30; 
 
