@@ -628,7 +628,7 @@ void runHttpServer(std::list<Driver>& drivers, int grid_size) {
                     d.y = rand() % grid_size;
                     d.target_x = -1;
                     d.target_y = -1;
-                    d.assigned_ride = "";
+                    d.assigned_rider_id = "";
                 }
             }
         }
