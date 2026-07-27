@@ -115,6 +115,13 @@
             <input type="number" id="gridRows" value="12" min="5" max="30">
           </div>
         </div>
+        <div class="form-group">
+          <label>Driver Fleet Scaling (Live & Mock)</label>
+          <div style="display: flex; gap: 0.5rem;">
+            <button type="button" class="btn" style="flex: 1; font-weight: 700; background: rgba(244, 63, 94, 0.15); color: #f43f5e; border-color: #f43f5e;" onclick="adjustDriverCount(-1)">− Remove Driver</button>
+            <button type="button" class="btn" style="flex: 1; font-weight: 700; background: rgba(16, 185, 129, 0.15); color: #10b981; border-color: #10b981;" onclick="adjustDriverCount(1)">+ Add Driver</button>
+          </div>
+        </div>
       </div>
       <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 0.5rem;">
         <button id="saveSettingsBtn" class="btn btn-primary">Apply Configuration</button>
@@ -138,15 +145,15 @@
           </div>
           <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.75rem; font-size: 0.75rem; color: #cbd5e1; margin-top: 0.25rem;">
             <div style="background: rgba(255,255,255,0.03); padding: 0.5rem; border-radius: 0.5rem; border: 1px solid rgba(255,255,255,0.05);">
-              <strong style="color: #38bdf8; display: block; margin-bottom: 0.2rem;">1. Thread-Safe Queue</strong>
-              Rider requests wait in a locked C++ queue. A <code style="color: #f43f5e;">condition_variable</code> wakes the dispatcher instantly without CPU busy-waiting.
+              <strong style="color: #60a5fa; display: block; margin-bottom: 0.2rem;">1. Dedicated Simulation Threads</strong>
+              Every Driver (<code style="color: #93c5fd;">std::thread</code>) and Rider runs autonomously on its own OS thread with randomized sleep cycles, simulating real-world concurrent GPS updates.
             </div>
             <div style="background: rgba(255,255,255,0.03); padding: 0.5rem; border-radius: 0.5rem; border: 1px solid rgba(255,255,255,0.05);">
-              <strong style="color: #4ade80; display: block; margin-bottom: 0.2rem;">2. Euclidean Matching</strong>
+              <strong style="color: #34d399; display: block; margin-bottom: 0.2rem;">2. Thread-Safe Matchmaking</strong>
               When a ride is requested, the dispatcher locks <code style="color: #f43f5e;">driver_mutex</code> and calculates shortest straight-line distance <code style="color: #fde047;">√(Δx² + Δy²)</code>.
             </div>
             <div style="background: rgba(255,255,255,0.03); padding: 0.5rem; border-radius: 0.5rem; border: 1px solid rgba(255,255,255,0.05);">
-              <strong style="color: #fb923c; display: block; margin-bottom: 0.2rem;">3. Dynamic Surge Zones</strong>
+              <strong style="color: #fbbf24; display: block; margin-bottom: 0.2rem;">3. Dynamic Surge Pricing</strong>
               The grid is divided into zones. If pending requests exceed available drivers by ≥1, fares multiply (1.5x - 2.0x) automatically.
             </div>
           </div>
@@ -156,13 +163,17 @@
         <div class="stats-row">
           <div class="stat-card">
             <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-              <span class="stat-label">Active Fleet</span>
+              <span class="stat-label">Total Drivers (Fleet)</span>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" style="color: var(--text-muted);">
                 <use href="#icon-compass"/>
               </svg>
             </div>
             <span id="statActiveDrivers" class="stat-value">0</span>
             <div id="statDriversSubtext" style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem; font-weight: 500;">0 available · 0 en route</div>
+            <div style="display: flex; gap: 0.4rem; margin-top: 0.6rem;">
+              <button type="button" class="btn-stat-action" title="Remove 1 Driver from Fleet" onclick="adjustDriverCount(-1)">− Remove</button>
+              <button type="button" class="btn-stat-action" title="Add 1 Driver to Fleet" onclick="adjustDriverCount(1)">+ Add</button>
+            </div>
           </div>
 
           <div class="stat-card">

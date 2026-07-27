@@ -14,6 +14,7 @@
 #include <atomic>
 #include <map>
 #include <deque>
+#include <list>
 
 // Use single-header libraries for HTTP and JSON
 #include "httplib.h"
@@ -21,7 +22,7 @@
 
 using json = nlohmann::json;
 
-// Config option (set to false for bounded console runs)
+// Simulation Config
 const bool RUN_INDEFINITELY = true;
 
 // Status Enum
@@ -36,6 +37,10 @@ struct Driver {
     int x;
     int y;
     DriverStatus status;
+    int target_x = -1;
+    int target_y = -1;
+    std::string assigned_rider_id = "";
+    bool active = true;
 };
 
 // RideRequest Struct
@@ -172,7 +177,7 @@ void simulateRider(int id, int grid_size) {
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_int_distribution<> grid_dist(0, grid_size - 1);
-    std::uniform_int_distribution<> time_dist(15000, 25000); // 15 to 25s for calm UI flow
+    std::uniform_int_distribution<> time_dist(2500, 5500); // 2.5 to 5.5s for continuous active rides
 
     std::string rider_id = "R" + std::to_string(id);
 
@@ -197,7 +202,7 @@ void simulateRider(int id, int grid_size) {
 // Dispatcher Engine
 // ------------------------------------------------------------------
 
-void dispatchEngine(std::vector<Driver>& drivers, int grid_size) {
+void dispatchEngine(std::list<Driver>& drivers, int grid_size) {
     while (simulation_running) {
         RideRequest req;
         if (!ride_queue.pop(req)) {
@@ -229,9 +234,8 @@ void dispatchEngine(std::vector<Driver>& drivers, int grid_size) {
 
         {
             std::lock_guard<std::mutex> lock(driver_mutex);
-            
-            for (auto& d : drivers) {
-                if (d.status == DriverStatus::AVAILABLE) {
+                   for (auto& d : drivers) {
+                if (d.active && d.status == DriverStatus::AVAILABLE) {
                     if (getZoneId(d.x, d.y, grid_size) == zone_id) {
                         available_drivers_in_zone++;
                     }
@@ -246,6 +250,9 @@ void dispatchEngine(std::vector<Driver>& drivers, int grid_size) {
 
             if (best_driver) {
                 best_driver->status = DriverStatus::BUSY;
+                best_driver->target_x = req.pickup_x;
+                best_driver->target_y = req.pickup_y;
+                best_driver->assigned_rider_id = req.rider_id;
                 driver_found = true;
             }
         } 
@@ -258,7 +265,7 @@ void dispatchEngine(std::vector<Driver>& drivers, int grid_size) {
             }
             {
                 std::lock_guard<std::mutex> lock(zone_mutex);
-                pending_requests_per_zone[zone_id]--; 
+                pending_requests_per_zone[zone_id]++; 
             }
             std::this_thread::sleep_for(std::chrono::milliseconds(1000));
             ride_queue.push(req);
@@ -340,10 +347,13 @@ void dispatchEngine(std::vector<Driver>& drivers, int grid_size) {
          * request, remaining highly responsive and never getting stuck waiting for a ride to finish.
          */
         std::thread([best_driver]() {
-            std::this_thread::sleep_for(std::chrono::milliseconds(2500)); // 2.5s ride duration
+            std::this_thread::sleep_for(std::chrono::milliseconds(9000)); // 9s ride duration
             if (simulation_running) {
                 std::lock_guard<std::mutex> lock(driver_mutex);
                 best_driver->status = DriverStatus::AVAILABLE;
+                best_driver->target_x = -1;
+                best_driver->target_y = -1;
+                best_driver->assigned_rider_id = "";
                 logThreadEvent("THREAD async ride complete -> " + best_driver->id + " restored to AVAILABLE");
             }
         }).detach();
@@ -357,7 +367,7 @@ void simulateDriver(Driver& driver, int grid_size) {
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_int_distribution<> grid_dist(0, grid_size - 1);
-    std::uniform_int_distribution<> time_dist(1500, 3000); 
+    std::uniform_int_distribution<> time_dist(1000, 2000); 
 
     while (simulation_running) {
         std::this_thread::sleep_for(std::chrono::milliseconds(time_dist(gen)));
@@ -365,9 +375,16 @@ void simulateDriver(Driver& driver, int grid_size) {
 
         {
             std::lock_guard<std::mutex> lock(driver_mutex);
+            if (!driver.active) break;
             if (driver.status == DriverStatus::AVAILABLE) {
                 driver.x = grid_dist(gen);
                 driver.y = grid_dist(gen);
+            } else if (driver.status == DriverStatus::BUSY && driver.target_x >= 0 && driver.target_y >= 0) {
+                // Step-by-step physical movement toward target pickup/rider location
+                if (driver.x < driver.target_x) driver.x++;
+                else if (driver.x > driver.target_x) driver.x--;
+                else if (driver.y < driver.target_y) driver.y++;
+                else if (driver.y > driver.target_y) driver.y--;
             }
         }
     }
@@ -377,7 +394,7 @@ void simulateDriver(Driver& driver, int grid_size) {
 // Part B: HTTP Server 
 // ------------------------------------------------------------------
 
-json getStateJson(const std::vector<Driver>& drivers, int grid_size) {
+json getStateJson(const std::list<Driver>& drivers, int grid_size) {
     json state;
     state["stats"] = json::object();
     state["drivers"] = json::array();
@@ -391,6 +408,7 @@ json getStateJson(const std::vector<Driver>& drivers, int grid_size) {
     {
         std::lock_guard<std::mutex> lock(driver_mutex);
         for (const auto& d : drivers) {
+            if (!d.active) continue;
             if (d.status == DriverStatus::AVAILABLE) active_drivers++;
             
             json driver_json;
@@ -399,6 +417,11 @@ json getStateJson(const std::vector<Driver>& drivers, int grid_size) {
             driver_json["y"] = d.y;
             driver_json["status"] = (d.status == DriverStatus::AVAILABLE) ? "available" : "busy";
             driver_json["heading_deg"] = 0; // Simplified for now per requirements
+            if (d.status == DriverStatus::BUSY && d.target_x >= 0) {
+                driver_json["target_x"] = d.target_x;
+                driver_json["target_y"] = d.target_y;
+                driver_json["assigned_rider_id"] = d.assigned_rider_id;
+            }
             state["drivers"].push_back(driver_json);
         }
     }
@@ -513,7 +536,7 @@ json getStateJson(const std::vector<Driver>& drivers, int grid_size) {
  * just long enough to copy the data into the JSON object. This ensures we never read half-written structs 
  * or crash from a vector re-allocating memory during a read.
  */
-void runHttpServer(std::vector<Driver>& drivers, int grid_size) {
+void runHttpServer(std::list<Driver>& drivers, int grid_size) {
     httplib::Server svr;
     
     svr.Get("/state", [&drivers, grid_size](const httplib::Request& req, httplib::Response& res) {
@@ -522,6 +545,67 @@ void runHttpServer(std::vector<Driver>& drivers, int grid_size) {
         res.set_content(state.dump(), "application/json");
     });
     
+    auto add_handler = [&drivers, grid_size](const httplib::Request& req, httplib::Response& res) {
+        std::string new_id;
+        {
+            std::lock_guard<std::mutex> lock(driver_mutex);
+            // Check if there is an inactive driver we can reactivate
+            bool reactivated = false;
+            for (auto& d : drivers) {
+                if (!d.active) {
+                    d.active = true;
+                    d.status = DriverStatus::AVAILABLE;
+                    new_id = d.id;
+                    reactivated = true;
+                    break;
+                }
+            }
+            if (!reactivated) {
+                new_id = "D" + std::to_string(drivers.size() + 1);
+                drivers.push_back({new_id, 0, 0, DriverStatus::AVAILABLE, -1, -1, "", true});
+                std::thread(simulateDriver, std::ref(drivers.back()), grid_size).detach();
+            }
+        }
+        logThreadEvent("FLEET SCALING -> Added/Reactivated driver thread " + new_id + " via HTTP API");
+        res.set_header("Access-Control-Allow-Origin", "*");
+        res.set_content("{\"status\":\"success\",\"driver_id\":\"" + new_id + "\"}", "application/json");
+    };
+    svr.Get("/driver/add", add_handler);
+    svr.Post("/driver/add", add_handler);
+    
+    auto remove_handler = [&drivers](const httplib::Request& req, httplib::Response& res) {
+        std::string removed_id = "";
+        {
+            std::lock_guard<std::mutex> lock(driver_mutex);
+            for (auto it = drivers.rbegin(); it != drivers.rend(); ++it) {
+                if (it->active && it->status == DriverStatus::AVAILABLE) {
+                    it->active = false;
+                    removed_id = it->id;
+                    break;
+                }
+            }
+            if (removed_id.empty()) {
+                for (auto it = drivers.rbegin(); it != drivers.rend(); ++it) {
+                    if (it->active) {
+                        it->active = false;
+                        removed_id = it->id;
+                        break;
+                    }
+                }
+            }
+        }
+        if (!removed_id.empty()) {
+            logThreadEvent("FLEET SCALING -> Terminated driver thread " + removed_id + " via HTTP API");
+            res.set_header("Access-Control-Allow-Origin", "*");
+            res.set_content("{\"status\":\"success\",\"removed_id\":\"" + removed_id + "\"}", "application/json");
+        } else {
+            res.set_header("Access-Control-Allow-Origin", "*");
+            res.set_content("{\"status\":\"error\",\"message\":\"No active drivers to remove\"}", "application/json");
+        }
+    };
+    svr.Get("/driver/remove", remove_handler);
+    svr.Post("/driver/remove", remove_handler);
+
     {
         std::lock_guard<std::mutex> lock(console_mutex);
         std::cout << "[HTTP] Server active on http://0.0.0.0:8080/state\n";
@@ -539,12 +623,12 @@ int main() {
     const int GRID_SIZE = 10;
     const int SIMULATION_DURATION_SECONDS = 30; 
 
-    std::vector<Driver> drivers;
+    std::list<Driver> drivers;
     std::vector<std::thread> driver_threads;
     std::vector<std::thread> rider_threads;
 
     for (int i = 0; i < NUM_DRIVERS; ++i) {
-        drivers.push_back({"D" + std::to_string(i + 1), 0, 0, DriverStatus::AVAILABLE});
+        drivers.push_back({"D" + std::to_string(i + 1), 0, 0, DriverStatus::AVAILABLE, -1, -1, "", true});
     }
 
     std::cout << "Starting RideSync Multi-threaded Dispatch Engine...\n";
@@ -560,8 +644,8 @@ int main() {
     }
     
     // Spawn driver threads
-    for (int i = 0; i < NUM_DRIVERS; ++i) {
-        driver_threads.emplace_back(simulateDriver, std::ref(drivers[i]), GRID_SIZE);
+    for (auto& d : drivers) {
+        driver_threads.emplace_back(simulateDriver, std::ref(d), GRID_SIZE);
     }
 
     // Spawn rider threads
