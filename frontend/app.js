@@ -511,7 +511,8 @@ function renderSurgeZones(zones) {
 
   zones.forEach(zone => {
     const overlay = document.createElement('div');
-    overlay.className = 'surge-overlay';
+    const isRed = zone.multiplier >= 2.0;
+    overlay.className = `surge-overlay ${isRed ? 'surge-red' : 'surge-yellow'}`;
     
     // A surge block runs from x_min to x_max + 1 and y_min to y_max + 1
     const leftPercent = (zone.x_min / (cols - 1)) * 100;
@@ -525,6 +526,7 @@ function renderSurgeZones(zones) {
     overlay.style.height = `${heightPercent}%`;
     
     overlay.title = `${zone.multiplier}x Surge`;
+    overlay.innerHTML = `<div class="surge-badge-map">${isRed ? '💥' : '🔥'} ${zone.multiplier.toFixed(1)}x<br><span style="font-size: 0.6rem; letter-spacing: 0.5px;">SURGE</span></div>`;
     
     surgeZonesLayer.appendChild(overlay);
   });
@@ -933,14 +935,21 @@ function initSimulation() {
     spawnMockRider();
   }
 
-  // Pre-seed 1 active Surge zone
+  // Pre-seed 2 active Surge zones (1 Yellow, 1 Red)
   simSurgeZones = [
     {
-      x_min: Math.floor(cols * 0.5),
+      x_min: Math.floor(cols * 0.4),
       y_min: Math.floor(rows * 0.2),
-      x_max: Math.floor(cols * 0.5) + 2,
+      x_max: Math.floor(cols * 0.4) + 2,
       y_max: Math.floor(rows * 0.2) + 2,
-      multiplier: 1.6
+      multiplier: 1.5
+    },
+    {
+      x_min: Math.floor(cols * 0.6),
+      y_min: Math.floor(rows * 0.6),
+      x_max: Math.floor(cols * 0.6) + 2,
+      y_max: Math.floor(rows * 0.6) + 2,
+      multiplier: 2.2
     }
   ];
 }

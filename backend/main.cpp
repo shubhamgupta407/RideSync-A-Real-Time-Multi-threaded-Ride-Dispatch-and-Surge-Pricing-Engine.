@@ -67,6 +67,8 @@ std::mutex matches_mutex;
 std::mutex logs_mutex;
 
 std::map<int, int> pending_requests_per_zone;
+std::map<int, int> zone_surge_timer;
+std::map<int, double> zone_surge_multiplier;
 std::vector<RideRequest> pending_riders;
 std::deque<MatchRecord> recent_matches;
 std::deque<std::string> thread_logs;
@@ -277,6 +279,11 @@ void dispatchEngine(std::vector<Driver>& drivers, int grid_size) {
         } else if (difference >= 1) {
             surge_multiplier = 1.5;
         }
+        if (surge_multiplier > 1.0) {
+            std::lock_guard<std::mutex> lock(zone_mutex);
+            zone_surge_timer[zone_id] = 12; // Keep zone glowing for 12s on dashboard
+            zone_surge_multiplier[zone_id] = surge_multiplier;
+        }
 
         double base_fare = 5.0;
         double per_unit_rate = 2.0;
@@ -431,8 +438,23 @@ json getStateJson(const std::vector<Driver>& drivers, int grid_size) {
         
         int diff = pending_in_zone - available_in_zone;
         double surge = 1.0;
-        if (diff >= 3) surge = 2.0;
-        else if (diff >= 1) surge = 1.5;
+        if (diff >= 3) {
+            surge = 2.0;
+            std::lock_guard<std::mutex> lock(zone_mutex);
+            zone_surge_timer[z] = 12;
+            zone_surge_multiplier[z] = 2.0;
+        } else if (diff >= 1) {
+            surge = 1.5;
+            std::lock_guard<std::mutex> lock(zone_mutex);
+            zone_surge_timer[z] = 12;
+            zone_surge_multiplier[z] = 1.5;
+        } else {
+            std::lock_guard<std::mutex> lock(zone_mutex);
+            if (zone_surge_timer[z] > 0) {
+                zone_surge_timer[z]--;
+                surge = zone_surge_multiplier[z];
+            }
+        }
         
         if (surge > 1.0) {
             active_surge_zones++;
@@ -527,6 +549,15 @@ int main() {
 
     std::cout << "Starting RideSync Multi-threaded Dispatch Engine...\n";
     logThreadEvent("INITIALIZE -> Spawned 5 Driver threads, 8 Rider threads, and 1 Dispatcher thread");
+    
+    // Pre-seed two zones with active surge so the frontend immediately renders glowing heatmaps
+    {
+        std::lock_guard<std::mutex> lock(zone_mutex);
+        zone_surge_timer[4] = 20;
+        zone_surge_multiplier[4] = 1.5; // Yellow surge
+        zone_surge_timer[7] = 20;
+        zone_surge_multiplier[7] = 2.0; // Red surge
+    }
     
     // Spawn driver threads
     for (int i = 0; i < NUM_DRIVERS; ++i) {

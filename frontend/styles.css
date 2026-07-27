@@ -540,22 +540,58 @@ header {
 
 /* --- Map Elements --- */
 
-/* Surge Zones - Feathered Radial Glow */
+/* Surge Zones - Feathered Radial Glow & Distinct Heatmaps */
 .surge-overlay {
   position: absolute;
-  background: radial-gradient(circle at center, rgba(245, 158, 11, 0.45) 0%, rgba(245, 158, 11, 0.18) 50%, transparent 85%);
-  border: none;
-  border-radius: 50%;
+  border: 1px dashed rgba(255, 255, 255, 0.3);
+  border-radius: 12px;
   pointer-events: none;
   animation: surgePulse 2s infinite ease-in-out;
   transition: all 0.5s ease-in-out;
-  filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   z-index: 4;
 }
 
+.surge-yellow {
+  background: radial-gradient(circle at center, rgba(234, 179, 8, 0.55) 0%, rgba(245, 158, 11, 0.25) 50%, rgba(245, 158, 11, 0.05) 85%);
+  border-color: rgba(250, 204, 21, 0.6);
+  box-shadow: 0 0 25px rgba(234, 179, 8, 0.45), inset 0 0 15px rgba(234, 179, 8, 0.35);
+}
+
+.surge-red {
+  background: radial-gradient(circle at center, rgba(239, 68, 68, 0.65) 0%, rgba(220, 38, 38, 0.35) 50%, rgba(220, 38, 38, 0.05) 85%);
+  border-color: rgba(248, 113, 113, 0.75);
+  box-shadow: 0 0 30px rgba(239, 68, 68, 0.55), inset 0 0 20px rgba(239, 68, 68, 0.45);
+}
+
+.surge-badge-map {
+  background: rgba(15, 23, 42, 0.85);
+  color: #fff;
+  padding: 0.25rem 0.45rem;
+  border-radius: 6px;
+  font-weight: 800;
+  font-size: 0.75rem;
+  text-align: center;
+  line-height: 1.1;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+  backdrop-filter: blur(4px);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+}
+.surge-yellow .surge-badge-map {
+  color: #fde047;
+  border-color: rgba(250, 204, 21, 0.5);
+}
+.surge-red .surge-badge-map {
+  color: #fca5a5;
+  border-color: rgba(248, 113, 113, 0.6);
+}
+
 @keyframes surgePulse {
-  0%, 100% { opacity: 0.65; transform: scale(0.92); }
-  50% { opacity: 1.0; transform: scale(1.08); }
+  0%, 100% { opacity: 0.75; transform: scale(0.96); }
+  50% { opacity: 1.0; transform: scale(1.03); }
 }
 
 /* Motion trails for vehicles */
