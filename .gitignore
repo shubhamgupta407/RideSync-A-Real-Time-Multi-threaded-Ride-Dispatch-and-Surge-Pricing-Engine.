@@ -1,3 +1,5 @@
 backend/sim
+sim
+/sim
 *.o
 .DS_Store
