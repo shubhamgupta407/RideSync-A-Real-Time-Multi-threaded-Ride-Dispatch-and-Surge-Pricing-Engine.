@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <!-- Link stylesheet with cache buster -->
-  <link rel="stylesheet" href="styles.css?v=executivegrid">
+  <link rel="stylesheet" href="styles.css?v=bugfixes1">
 </head>
 <body>
 
@@ -70,6 +70,9 @@
       </div>
       
       <div class="controls-section">
+        <button id="toggleSimulationBtn" class="btn" style="background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid #10b981; font-weight: 600;" aria-label="Toggle Simulation ON/OFF">
+          <span id="simToggleIcon">🟢</span> <span id="simToggleText">Simulation: ON</span>
+        </button>
         <div id="statusBadge" class="status-badge connected">
           <span class="status-dot"></span>
           <span id="statusText">Connected</span>
@@ -159,6 +162,7 @@
               </svg>
             </div>
             <span id="statActiveDrivers" class="stat-value">0</span>
+            <div id="statDriversSubtext" style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem; font-weight: 500;">0 available · 0 busy</div>
           </div>
 
           <div class="stat-card">
@@ -217,6 +221,10 @@
                 <span class="legend-color surge"></span>
                 <span>Surge zone</span>
               </div>
+              <div class="legend-item">
+                <span class="legend-color water" style="background: linear-gradient(135deg, #082f49 0%, #0c4a6e 100%); border: 1px solid #0ea5e9; border-radius: 4px; display: inline-block; width: 12px; height: 12px; vertical-align: middle;"></span>
+                <span>East River Canal</span>
+              </div>
             </div>
           </div>
 
@@ -233,9 +241,9 @@
 
             <!-- Active elements layers -->
             <div id="surgeZonesLayer"></div>
-            <svg id="laserLayer" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 15; overflow: visible;"></svg>
             <div id="ridersLayer"></div>
             <div id="driversLayer"></div>
+            <div id="landmarkLabelsLayer" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 25;"></div>
 
             <!-- Hover Popover Tooltip -->
             <div id="mapTooltip" class="map-tooltip">
@@ -314,6 +322,6 @@
   </div>
 
   <!-- JavaScript file -->
-  <script src="app.js?v=executivegrid"></script>
+  <script src="app.js?v=option2"></script>
 </body>
 </html>

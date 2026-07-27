@@ -33,11 +33,13 @@ const riderDOMCache = new Map();
 
 // Timer variables
 let pollTimerId = null;
+let isSimulationPaused = false;
 
 // --- DOM Element Selectors ---
 const statusBadge = document.getElementById('statusBadge');
 const statusText = document.getElementById('statusText');
 const toggleSettingsBtn = document.getElementById('toggleSettingsBtn');
+const toggleSimulationBtn = document.getElementById('toggleSimulationBtn');
 const settingsDrawer = document.getElementById('settingsDrawer');
 const saveSettingsBtn = document.getElementById('saveSettingsBtn');
 
@@ -63,8 +65,8 @@ const gridLabels = document.getElementById('gridLabels');
 const surgeZonesLayer = document.getElementById('surgeZonesLayer');
 const ridersLayer = document.getElementById('ridersLayer');
 const driversLayer = document.getElementById('driversLayer');
+const landmarkLabelsLayer = document.getElementById('landmarkLabelsLayer');
 const mapTooltip = document.getElementById('mapTooltip');
-const laserLayer = document.getElementById('laserLayer');
 const threadLogsContainer = document.getElementById('threadLogsContainer');
 
 // Error Overlay
@@ -174,29 +176,56 @@ function drawGridCoordinateLabels() {
   }
 }
 
-// Generate the clean underlying city blocks (buildings, parks, rivers) without clutter
+// Generate the clean underlying city blocks (buildings, parks, rivers) and road networks
 function drawCityBlocks() {
   cityBlocksLayer.innerHTML = '';
+  if (landmarkLabelsLayer) landmarkLabelsLayer.innerHTML = '';
   const cols = config.gridCols;
   const rows = config.gridRows;
 
+  // 1. Draw Avenue Road Arteries (irregular intervals with dashed centerlines)
+  for (let y of [2, 5, 8]) {
+    if (y < rows - 1) {
+      const roadH = document.createElement('div');
+      roadH.className = 'avenue-road-h';
+      roadH.style.top = `calc(((100% / ${rows - 1}) * (${rows - 1 - y})) - 5px)`;
+      cityBlocksLayer.appendChild(roadH);
+    }
+  }
+  for (let x of [2, 5, 8]) {
+    if (x < cols - 1) {
+      const roadV = document.createElement('div');
+      roadV.className = 'avenue-road-v';
+      roadV.style.left = `calc(((100% / ${cols - 1}) * ${x}) - 5px)`;
+      cityBlocksLayer.appendChild(roadV);
+    }
+  }
+
+  // 2. Draw ONE continuous East River Canal block in column 1
+  if (rows > 5 && cols > 2) {
+    const river = document.createElement('div');
+    river.className = 'city-block water';
+    river.style.left = `calc(((100% / ${cols - 1}) * 1) + 4px)`;
+    river.style.top = `calc(((100% / ${rows - 1}) * 2) + 4px)`;
+    river.style.width = `calc((100% / ${cols - 1}) - 8px)`;
+    river.style.height = `calc(((100% / ${rows - 1}) * ${rows - 5}) - 8px)`;
+    river.style.borderRadius = '16px';
+    cityBlocksLayer.appendChild(river);
+  }
+
+  // 3. Draw City Blocks with varied texture & shade
   for (let x = 0; x < cols - 1; x++) {
     for (let y = 0; y < rows - 1; y++) {
-      const block = document.createElement('div');
-      
-      // Layout dimensions matching cell margins to represent clean urban streets
-      block.style.left = `calc(((100% / ${cols - 1}) * ${x}) + 4px)`;
-      block.style.top = `calc(((100% / ${rows - 1}) * (${rows - 2 - y})) + 4px)`;
-      block.style.width = `calc((100% / ${cols - 1}) - 8px)`;
-      block.style.height = `calc((100% / ${rows - 1}) - 8px)`;
-
-      let blockClass = 'residential';
+      let blockClass = '';
       let labelText = '';
 
-      // Only highlight 4 iconic Manhattan landmarks for zero-clutter elegance
+      // Skip cells covered by the unified East River Canal, but trigger landmark label
       if (x === 1 && y >= 2 && y <= rows - 4) {
-        blockClass = 'water';
-        if (y === Math.floor(rows/2)) labelText = '🌊 East River Canal';
+        if (y === Math.floor(rows / 2)) {
+          labelText = '🌊 East River Canal';
+        } else {
+          continue;
+        }
       }
       else if (x >= cols - 4 && x <= cols - 3 && y >= rows - 5 && y <= rows - 4) {
         blockClass = 'park';
@@ -208,29 +237,64 @@ function drawCityBlocks() {
       }
       else if (x === 5 && y === 6) {
         blockClass = 'commercial';
-        labelText = '🎭 Times Square / Midtown';
+        labelText = '🎭 Midtown / Times Square';
       }
       else {
-        // Standard clean tactical dark blocks (NO repeated text emojis)
-        blockClass = 'residential';
+        const variant = (x * 7 + y * 13) % 4;
+        blockClass = `var-${variant}`;
       }
 
-      block.className = `city-block ${blockClass}`;
+      if (blockClass) {
+        const block = document.createElement('div');
+        block.style.left = `calc(((100% / ${cols - 1}) * ${x}) + 4px)`;
+        block.style.top = `calc(((100% / ${rows - 1}) * (${rows - 2 - y})) + 4px)`;
+        block.style.width = `calc((100% / ${cols - 1}) - 8px)`;
+        block.style.height = `calc((100% / ${rows - 1}) - 8px)`;
+        block.className = `city-block ${blockClass}`;
+        cityBlocksLayer.appendChild(block);
+      }
 
-      if (labelText) {
+      // Approach 1: Render landmark label boxes on elevated landmarkLabelsLayer (z-index 25)
+      // so labels always stay 100% visible and readable above car icons (z-index 8)
+      if (labelText && landmarkLabelsLayer) {
         const label = document.createElement('span');
         label.className = 'city-block-label';
         label.innerText = labelText;
-        block.appendChild(label);
+        label.style.position = 'absolute';
+        label.style.left = `calc(((100% / ${cols - 1}) * (${x} + 0.5)))`;
+        label.style.top = `calc(((100% / ${rows - 1}) * (${rows - 1.5 - y})))`;
+        label.style.transform = 'translate(-50%, -50%)';
+        label.style.pointerEvents = 'all';
+        landmarkLabelsLayer.appendChild(label);
       }
-
-      cityBlocksLayer.appendChild(block);
     }
   }
 }
 
 // Setup all click handlers and bindings
 function setupEventListeners() {
+  // Toggle Simulation ON/OFF (Pause/Resume)
+  if (toggleSimulationBtn) {
+    toggleSimulationBtn.addEventListener('click', () => {
+      isSimulationPaused = !isSimulationPaused;
+      const simIcon = document.getElementById('simToggleIcon');
+      const simText = document.getElementById('simToggleText');
+      if (isSimulationPaused) {
+        toggleSimulationBtn.style.background = 'rgba(244, 63, 94, 0.15)';
+        toggleSimulationBtn.style.color = '#f43f5e';
+        toggleSimulationBtn.style.borderColor = '#f43f5e';
+        if (simIcon) simIcon.innerText = '⏸️';
+        if (simText) simText.innerText = 'Simulation: OFF (Paused)';
+      } else {
+        toggleSimulationBtn.style.background = 'rgba(16, 185, 129, 0.15)';
+        toggleSimulationBtn.style.color = '#10b981';
+        toggleSimulationBtn.style.borderColor = '#10b981';
+        if (simIcon) simIcon.innerText = '🟢';
+        if (simText) simText.innerText = 'Simulation: ON';
+      }
+    });
+  }
+
   // Toggle Settings Panel
   toggleSettingsBtn.addEventListener('click', () => {
     settingsDrawer.classList.toggle('open');
@@ -313,6 +377,8 @@ function restartPollingLoop() {
 }
 
 function triggerPoll() {
+  if (isSimulationPaused) return;
+
   if (config.dataSource === 'simulated') {
     // Run local simulation step
     const simulatedState = stepSimulation();
@@ -364,7 +430,7 @@ function updateDashboard(data) {
   if (!data) return;
 
   // 1. Update stats indicators
-  updateStatsBar(data.stats);
+  updateStatsBar(data.stats, data.drivers || []);
 
   // 2. Draw surge overlays
   renderSurgeZones(data.surge_zones || []);
@@ -380,16 +446,22 @@ function updateDashboard(data) {
 
   // 6. Stream live C++ multithreaded engine logs
   renderThreadLogs(data.thread_logs || []);
-
-  // 7. Flash glowing laser lines across map for Euclidean matches
-  triggerLaserMatches(data.recent_matches || [], data.drivers || [], data.riders || []);
 }
 
 // Updates numeric cards at the top
-function updateStatsBar(stats) {
+function updateStatsBar(stats, drivers = []) {
   if (!stats) return;
 
-  animateStatChange(statActiveDrivers, stats.active_drivers);
+  const totalDrivers = drivers && drivers.length > 0 ? drivers.length : (stats.active_drivers || 0);
+  const availCount = drivers && drivers.length > 0 ? drivers.filter(d => d.status === 'available').length : (stats.active_drivers || 0);
+  const busyCount = Math.max(0, totalDrivers - availCount);
+
+  animateStatChange(statActiveDrivers, totalDrivers);
+  const subtextEl = document.getElementById('statDriversSubtext');
+  if (subtextEl) {
+    subtextEl.innerText = `${availCount} available · ${busyCount} en route`;
+  }
+
   animateStatChange(statPendingRequests, stats.pending_requests);
   animateStatChange(statRidesMatched, stats.rides_matched_total);
   animateStatChange(statSurgeZones, stats.surge_zones_active);
@@ -493,6 +565,7 @@ function renderRiders(riders) {
 }
 
 // Render Drivers (Cars) with transition animations
+// Render Drivers (Cars) with transition animations, motion trails, and anti-overlap positioning
 function renderDrivers(drivers) {
   const currentDriverIds = new Set(drivers.map(d => d.id));
 
@@ -503,6 +576,14 @@ function renderDrivers(drivers) {
       driverDOMCache.delete(id);
     }
   }
+
+  // Count coordinates to arrange overlapping cars in a clean arc cluster
+  const coordCounts = {};
+  const coordIndices = {};
+  drivers.forEach(d => {
+    const key = `${d.x},${d.y}`;
+    coordCounts[key] = (coordCounts[key] || 0) + 1;
+  });
 
   drivers.forEach(driver => {
     const pos = getPercentPosition(driver.x, driver.y);
@@ -583,13 +664,43 @@ function renderDrivers(drivers) {
       el.setAttribute('fill', carColor);
     });
 
-    // Stable offset logic for visual separation to prevent overlapping
-    let hash = 0;
-    for (let i = 0; i < String(driver.id).length; i++) {
-      hash = String(driver.id).charCodeAt(i) + ((hash << 5) - hash);
+    // Arc cluster offset logic when multiple vehicles share the exact same block
+    const key = `${driver.x},${driver.y}`;
+    const count = coordCounts[key] || 1;
+    const idx = coordIndices[key] || 0;
+    coordIndices[key] = idx + 1;
+
+    let offsetX = 0;
+    let offsetY = 0;
+    if (count > 1) {
+      const angle = (idx / count) * 2 * Math.PI;
+      offsetX = Math.cos(angle) * 2.2;
+      offsetY = Math.sin(angle) * 2.2;
     }
-    const offsetX = ((Math.abs(hash) % 31) / 10) - 1.5;
-    const offsetY = ((Math.abs(hash >> 3) % 31) / 10) - 1.5;
+
+    // Render subtle motion trail when vehicle moves between adjacent grid coordinates
+    if (prevPos && (prevPos.x !== driver.x || prevPos.y !== driver.y)) {
+      const prevPercent = getPercentPosition(prevPos.x, prevPos.y);
+      const dxP = pos.left - prevPercent.left;
+      const dyP = pos.top - prevPercent.top;
+      const distP = Math.sqrt(dxP * dxP + dyP * dyP);
+      const angleRad = Math.atan2(dyP, dxP);
+
+      // Only render trail if the vehicle moved to an adjacent block (prevents stray diagonal teleport lines)
+      if (distP <= 16) {
+        const trail = document.createElement('div');
+        trail.className = 'motion-trail';
+        trail.style.left = `${prevPercent.left}%`;
+        trail.style.top = `${prevPercent.top}%`;
+        trail.style.width = `${distP}%`;
+        trail.style.transformOrigin = '0 50%';
+        trail.style.transform = `rotate(${angleRad}rad)`;
+        driversLayer.appendChild(trail);
+        
+        setTimeout(() => trail.style.opacity = '0', 50);
+        setTimeout(() => trail.remove(), 1000);
+      }
+    }
 
     // Apply movement positioning
     marker.style.left = `${pos.left + offsetX}%`;
@@ -603,9 +714,7 @@ function renderDrivers(drivers) {
       const dx = driver.x - prevPos.x;
       const dy = driver.y - prevPos.y;
       
-      // Calculate angle relative to upward vector.
-      // dy values in standard grids increment upwards.
-      let angle = Math.atan2(dx, dy) * (180 / Math.PI); // degrees
+      let angle = Math.atan2(dx, dy) * (180 / Math.PI);
       if (angle < 0) angle += 360;
       heading = angle;
     }
@@ -771,49 +880,7 @@ function renderThreadLogs(logs) {
   }
 }
 
-// Flash neon laser arrows connecting matched drivers to riders
-function triggerLaserMatches(matches, drivers, riders) {
-  if (!laserLayer || !matches || matches.length === 0) return;
-  
-  const latestMatch = matches[0];
-  const matchKey = `laser_${latestMatch.driver_id}_${latestMatch.rider_id}_${latestMatch.timestamp}`;
-  
-  if (!state.seenMatchKeys.has(matchKey)) {
-    state.seenMatchKeys.add(matchKey);
-    
-    const driver = drivers.find(d => d.id === latestMatch.driver_id);
-    const rider = riders.find(r => r.id === latestMatch.rider_id);
-    
-    if (driver && rider) {
-      const dPos = getPercentPosition(driver.x, driver.y);
-      const rPos = getPercentPosition(rider.x, rider.y);
-      drawLaserLine(dPos.left, dPos.top, rPos.left, rPos.top);
-    }
-  }
-}
-
-function drawLaserLine(x1Pct, y1Pct, x2Pct, y2Pct) {
-  if (!laserLayer) return;
-  
-  const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-  line.setAttribute('x1', `${x1Pct}%`);
-  line.setAttribute('y1', `${y1Pct}%`);
-  line.setAttribute('x2', `${x2Pct}%`);
-  line.setAttribute('y2', `${y2Pct}%`);
-  line.setAttribute('stroke', '#00f2fe');
-  line.setAttribute('stroke-width', '3');
-  line.setAttribute('stroke-dasharray', '6 4');
-  line.style.filter = 'drop-shadow(0 0 8px #00f2fe)';
-  line.style.opacity = '1';
-  line.style.transition = 'opacity 1.5s ease-out';
-  
-  laserLayer.appendChild(line);
-  
-  setTimeout(() => {
-    line.style.opacity = '0';
-    setTimeout(() => line.remove(), 1500);
-  }, 800);
-}
+// Laser line rendering removed to prevent stray diagonal lines across grid.
 
 
 
@@ -957,8 +1024,8 @@ function stepSimulation() {
     }
   });
 
-  // 2. Spawn Riders periodically (30% chance per step, capped at 6)
-  if (Math.random() < 0.3 && simRiders.length < 6) {
+  // 2. Spawn Riders periodically (8% chance per step, capped at 6)
+  if (Math.random() < 0.08 && simRiders.length < 6) {
     spawnMockRider();
   }
 
