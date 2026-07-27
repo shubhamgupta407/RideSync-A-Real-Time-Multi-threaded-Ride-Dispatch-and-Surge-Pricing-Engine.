@@ -1201,7 +1201,7 @@ window.adjustDriverCount = function(delta) {
       .then(data => {
         if (data.status === 'success') {
           // Immediately poll state to reflect fleet change
-          fetchBackendState();
+          triggerPoll();
         } else {
           console.warn('Fleet scaling message:', data.message);
         }
@@ -1235,6 +1235,23 @@ window.adjustDriverCount = function(delta) {
     // Update dashboard immediately
     const mockData = generateMockState();
     updateDashboard(mockData);
+  }
+};
+
+window.restartEngine = function() {
+  if (config.dataSource === 'live') {
+    const baseUrl = config.backendUrl.replace(/\/state\/?$/, '');
+    fetch(baseUrl + '/restart', { method: 'POST' })
+      .then(res => res.json())
+      .then(data => {
+        if (data.status === 'success') {
+          triggerPoll();
+        }
+      })
+      .catch(err => console.error('Failed to restart live C++ backend:', err));
+  } else {
+    initSimulation();
+    triggerPoll();
   }
 };
 

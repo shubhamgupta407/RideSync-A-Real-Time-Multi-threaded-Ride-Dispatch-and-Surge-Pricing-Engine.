@@ -167,6 +167,13 @@ public:
         return true;
     }
     
+    void clear() {
+        std::unique_lock<std::mutex> lock(queue_mutex);
+        std::queue<RideRequest> empty;
+        std::swap(queue, empty);
+        pending_riders.clear();
+    }
+    
     void shutdown() {
         queue_cv.notify_all();
     }
@@ -610,6 +617,33 @@ void runHttpServer(std::list<Driver>& drivers, int grid_size) {
     };
     svr.Get("/driver/remove", remove_handler);
     svr.Post("/driver/remove", remove_handler);
+
+    auto restart_handler = [&drivers, grid_size](const httplib::Request& req, httplib::Response& res) {
+        {
+            std::lock_guard<std::mutex> lock(driver_mutex);
+            for (auto& d : drivers) {
+                if (d.active) {
+                    d.status = DriverStatus::AVAILABLE;
+                    d.x = rand() % grid_size;
+                    d.y = rand() % grid_size;
+                    d.target_x = -1;
+                    d.target_y = -1;
+                    d.assigned_ride = "";
+                }
+            }
+        }
+        ride_queue.clear();
+        rides_matched_total.store(0);
+        {
+            std::lock_guard<std::mutex> lock(logs_mutex);
+            thread_logs.clear();
+        }
+        logThreadEvent("SIMULATION RESET -> Fleet and grid reset via HTTP API");
+        res.set_header("Access-Control-Allow-Origin", "*");
+        res.set_content("{\"status\":\"success\"}", "application/json");
+    };
+    svr.Get("/restart", restart_handler);
+    svr.Post("/restart", restart_handler);
 
     int port = 8080;
     if (const char* env_p = std::getenv("PORT")) {
