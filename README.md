@@ -41,39 +41,47 @@ graph TD
 ## What's working right now
 
 **Frontend (`frontend/`)**
-- Built a procedural Manhattan-style city grid (residential, commercial, parks, water).
-- Renders top-down car vectors dynamically (green for available, gray for busy).
-- Uses a deterministic offset system so cars don't overlap when they're on the same block.
-- Live activity feed that logs simulated matches, ETAs, and fares.
-- Currently includes a mock JS simulator so you can see the UI working without the backend.
+- Built a Mapbox-style stylized abstract city map with avenue road networks, dashed centerlines, and block texture/shade variations.
+- Renders top-down car vectors dynamically with above-surface drop shadows, directional rotation, and motion transition trails.
+- Uses an anti-overlap arc clustering system so cars stay readable without clipping when sharing the same city block.
+- **Elevated Landmark Labels**: Features iconic landmarks (🌲 Central Park, 🌊 East River Canal, 🏢 Financial District, 🎭 Midtown / Times Square) rendered on a high z-index layer so label text remains 100% visible above vehicle markers.
+- **Simulation Controls**: Includes a live Simulation ON/OFF toggle button to pause or resume real-time state polling and rider spawning.
+- **Fleet Metrics Breakdown**: Dashboard KPI cards show total active fleet capacity with an instant real-time subtext split (`X available · Y en route`).
+- Live activity feed and multithreaded log streaming directly from the C++ engine.
 
 **Backend (`backend/`)**
 - Uses `std::thread` and `std::mutex` to spawn independent concurrent threads for drivers, riders, and a central dispatcher.
+- **Real-Time HTTP Server**: Integrated standalone header-only HTTP server (`httplib.h` and `json.hpp`) serving live JSON state snapshots on `http://localhost:8081/state`.
 - **Thread-safe Request Queue**: Uses a `std::condition_variable` to manage incoming ride requests efficiently without CPU-heavy busy waiting.
 - **Matching Engine**: Dispatcher uses Euclidean distance to locate and lock the nearest available driver atomically.
-- **Dynamic Surge Pricing**: Divides the city grid into geographic zones, calculating real-time supply vs demand (pending requests vs available drivers) to automatically apply surge multipliers.
+- **Dynamic Surge Pricing**: Divides the city grid into geographic zones, calculating real-time supply vs demand (pending requests vs available drivers) to automatically apply surge multipliers and glowing radial heat-map overlays.
 
 ## How to run it
 
-### Frontend
-Since it's vanilla JS/HTML, you just need a basic local web server to bypass CORS:
-```bash
-cd frontend
-python3 -m http.server 8080
-```
-Then open `http://localhost:8080` in your browser.
+### Running the Live Integration
+You can run the full integrated stack (C++ backend server + frontend UI):
 
-### Backend
-The backend is written in C++17. You can compile and run it with clang++:
+1. **Start the C++ Backend Server:**
 ```bash
 cd backend
 clang++ -std=c++17 -pthread main.cpp -o sim
 ./sim
 ```
+The server will start listening on port `8081`.
+
+2. **Open the Frontend Dashboard:**
+Open `frontend/index.html` directly in your browser or start a lightweight static server:
+```bash
+cd frontend
+python3 -m http.server 8080
+```
+Then navigate to `http://localhost:8080` (or `http://localhost:8081` if serving static assets directly from the backend).
 
 ## What's next
-- [ ] Connect the frontend directly to the C++ backend (likely via a local HTTP API).
+- [x] Connect the frontend directly to the C++ backend via local HTTP API.
 - [x] Build out the actual rider matching algorithm in C++.
 - [x] Implement the surge pricing logic based on driver/rider density.
+- [x] Implement Mapbox-style stylized operations map and simulation toggle controls.
+- [ ] Add historical analytics and ride completion metrics.
 
 Feel free to poke around the code or run the simulation locally!
