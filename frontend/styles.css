@@ -649,7 +649,7 @@ header {
   margin-left: -1rem;
   margin-top: -1.75rem; /* Anchor at pin tip */
   pointer-events: none;
-  z-index: 4;
+  z-index: 25;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -662,6 +662,60 @@ header {
   height: 2rem;
   fill: var(--color-rider);
   filter: drop-shadow(0 4px 6px rgba(0,0,0,0.2));
+}
+
+.rider-marker.assigned svg {
+  fill: #3b82f6; /* Vivid blue for assigned trip destinations */
+  filter: drop-shadow(0 0 10px rgba(59, 130, 246, 0.6));
+}
+
+.rider-pin-badge {
+  position: absolute;
+  top: -1.6rem;
+  background: rgba(15, 23, 42, 0.95);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.65rem;
+  z-index: 30;
+  font-weight: 700;
+  white-space: nowrap;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  pointer-events: none;
+  z-index: 10;
+}
+.rider-pin-badge.assigned {
+  background: rgba(30, 58, 138, 0.95);
+  border-color: #60a5fa;
+  color: #93c5fd;
+}
+
+/* Stat Card Interactive Buttons */
+.btn-stat-action {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: var(--text-main);
+  padding: 0.3rem 0.5rem;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex: 1;
+}
+.btn-stat-action:hover {
+  background: rgba(56, 189, 248, 0.2);
+  border-color: var(--color-primary);
+  color: #fff;
+  transform: translateY(-1px);
+}
+.btn-stat-action:active {
+  transform: translateY(0);
 }
 
 /* Pin shadow pulse effect */

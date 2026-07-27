@@ -435,8 +435,8 @@ function updateDashboard(data) {
   // 2. Draw surge overlays
   renderSurgeZones(data.surge_zones || []);
 
-  // 3. Draw rider location pins
-  renderRiders(data.riders || []);
+  // 3. Draw rider location pins (both pending requests and assigned destinations)
+  renderRiders(data.riders || [], data.drivers || []);
 
   // 4. Draw/animate driver cars
   renderDrivers(data.drivers || []);
@@ -532,32 +532,63 @@ function renderSurgeZones(zones) {
   });
 }
 
-// Render Riders / Booking Pins
-function renderRiders(riders) {
-  const currentRiderIds = new Set(riders.map(r => r.id));
+// Render Riders / Booking Pins (Both pending requests and busy driver target destinations)
+function renderRiders(riders, drivers = []) {
+  const activeMarkers = [];
+  
+  // 1. Unassigned / Pending riders
+  riders.forEach(r => {
+    activeMarkers.push({
+      id: r.id,
+      x: r.x,
+      y: r.y,
+      type: 'pending',
+      label: r.id
+    });
+  });
 
-  // Remove riders not present in incoming state
+  // 2. Assigned / En-Route destinations from busy drivers
+  drivers.forEach(d => {
+    if (d.status === 'busy' && d.target_x !== undefined && d.target_x !== null && d.target_x >= 0 && d.target_y !== undefined && d.target_y !== null && d.target_y >= 0) {
+      activeMarkers.push({
+        id: `dest_${d.id}`,
+        x: d.target_x,
+        y: d.target_y,
+        type: 'assigned',
+        label: `${d.assigned_rider_id || 'Rider'} (${d.id} en route)`
+      });
+    }
+  });
+
+  const currentIds = new Set(activeMarkers.map(m => m.id));
+
+  // Remove markers not present in incoming state
   for (const [id, marker] of riderDOMCache.entries()) {
-    if (!currentRiderIds.has(id)) {
+    if (!currentIds.has(id)) {
       marker.remove();
       riderDOMCache.delete(id);
     }
   }
 
-  // Draw or update active riders
-  riders.forEach(rider => {
-    const pos = getPercentPosition(rider.x, rider.y);
-    let marker = riderDOMCache.get(rider.id);
+  // Draw or update active markers
+  activeMarkers.forEach(item => {
+    const pos = getPercentPosition(item.x, item.y);
+    let marker = riderDOMCache.get(item.id);
 
     if (!marker) {
       marker = document.createElement('div');
-      marker.className = 'rider-marker';
+      marker.className = `rider-marker ${item.type}`;
       marker.innerHTML = `
+        <div class="rider-pin-badge ${item.type}">${item.type === 'assigned' ? '🚖 ' + item.label : '📍 ' + item.label}</div>
         <svg viewBox="0 0 24 24" fill="none"><use href="#icon-pin"/></svg>
         <div class="rider-shadow"></div>
       `;
       ridersLayer.appendChild(marker);
-      riderDOMCache.set(rider.id, marker);
+      riderDOMCache.set(item.id, marker);
+    } else {
+      const badge = marker.querySelector('.rider-pin-badge');
+      if (badge) badge.innerHTML = item.type === 'assigned' ? '🚖 ' + item.label : '📍 ' + item.label;
+      marker.className = `rider-marker ${item.type}`;
     }
 
     // Set position
@@ -646,14 +677,15 @@ function renderDrivers(drivers) {
       // Event logic for tooltip
       marker.addEventListener('click', (e) => {
         e.stopPropagation();
-        showTooltip(driver, marker);
+        showTooltip(marker._driverData || driver, marker);
       });
       
       driversLayer.appendChild(marker);
       driverDOMCache.set(driver.id, marker);
     }
 
-    // Cache current grid position values
+    // Cache current driver object and grid position values
+    marker._driverData = driver;
     marker.dataset.x = driver.x;
     marker.dataset.y = driver.y;
 
@@ -742,7 +774,7 @@ function showTooltip(driver, markerElement) {
     </div>
     <div class="tooltip-row">
       <span class="tooltip-label">Status:</span>
-      <span class="tooltip-value" style="text-transform: capitalize; color: ${driver.status === 'available' ? 'var(--color-available)' : 'var(--text-secondary)'}">${driver.status}</span>
+      <span class="tooltip-value" style="text-transform: capitalize; color: ${driver.status === 'available' ? 'var(--color-available)' : 'var(--text-secondary)'}">${driver.status === 'available' ? 'Available' : 'Busy / Assigned'}</span>
     </div>
     <div class="tooltip-row">
       <span class="tooltip-label">Coordinates:</span>
@@ -1033,8 +1065,8 @@ function stepSimulation() {
     }
   });
 
-  // 2. Spawn Riders periodically (8% chance per step, capped at 6)
-  if (Math.random() < 0.08 && simRiders.length < 6) {
+  // 2. Spawn Riders periodically (45% chance per step, capped at 8)
+  if (Math.random() < 0.45 && simRiders.length < 8) {
     spawnMockRider();
   }
 
@@ -1133,7 +1165,10 @@ function stepSimulation() {
       x: d.x,
       y: d.y,
       status: d.status,
-      heading_deg: d.heading_deg
+      heading_deg: d.heading_deg,
+      target_x: d.destX != null ? d.destX : -1,
+      target_y: d.destY != null ? d.destY : -1,
+      assigned_rider_id: d.passengerId || ""
     })),
     riders: simRiders,
     surge_zones: simSurgeZones,
@@ -1146,6 +1181,53 @@ function stepSimulation() {
     ]
   };
 }
+
+// Global Fleet Scaling Function (Works in both Live C++ API and Mock Simulator mode)
+window.adjustDriverCount = function(delta) {
+  if (config.dataSource === 'live') {
+    const endpoint = delta > 0 ? '/driver/add' : '/driver/remove';
+    const baseUrl = config.backendUrl.replace(/\/state\/?$/, '');
+    fetch(baseUrl + endpoint, { method: 'POST' })
+      .then(res => res.json())
+      .then(data => {
+        if (data.status === 'success') {
+          // Immediately poll state to reflect fleet change
+          fetchBackendState();
+        } else {
+          console.warn('Fleet scaling message:', data.message);
+        }
+      })
+      .catch(err => {
+        console.error('Failed to scale live C++ backend fleet:', err);
+      });
+  } else {
+    // Simulator Mode Fleet Scaling
+    if (delta > 0) {
+      const newId = `D${simDrivers.length + 1}`;
+      simDrivers.push({
+        id: newId,
+        x: Math.floor(Math.random() * config.gridCols),
+        y: Math.floor(Math.random() * config.gridRows),
+        status: 'available',
+        heading_deg: 0,
+        destX: null,
+        destY: null,
+        passengerId: null
+      });
+    } else if (simDrivers.length > 1) {
+      // Find available driver first, otherwise remove last
+      const availIdx = simDrivers.map(d => d.status).lastIndexOf('available');
+      if (availIdx >= 0) {
+        simDrivers.splice(availIdx, 1);
+      } else {
+        simDrivers.pop();
+      }
+    }
+    // Update dashboard immediately
+    const mockData = generateMockState();
+    updateDashboard(mockData);
+  }
+};
 
 // Start application
 document.addEventListener('DOMContentLoaded', init);
