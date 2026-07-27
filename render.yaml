@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: ridesync-dispatch-engine
+    env: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /state
+    envVars:
+      - key: PORT
+        value: 8080

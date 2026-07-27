@@ -15,6 +15,7 @@
 #include <map>
 #include <deque>
 #include <list>
+#include <cstdlib>
 
 // Use single-header libraries for HTTP and JSON
 #include "httplib.h"
@@ -539,6 +540,10 @@ json getStateJson(const std::list<Driver>& drivers, int grid_size) {
 void runHttpServer(std::list<Driver>& drivers, int grid_size) {
     httplib::Server svr;
     
+    // Serve static frontend files (works whether launched from root /app or /app/backend)
+    svr.set_mount_point("/", "./frontend");
+    svr.set_mount_point("/", "../frontend");
+    
     svr.Get("/state", [&drivers, grid_size](const httplib::Request& req, httplib::Response& res) {
         json state = getStateJson(drivers, grid_size);
         res.set_header("Access-Control-Allow-Origin", "*");
@@ -606,11 +611,15 @@ void runHttpServer(std::list<Driver>& drivers, int grid_size) {
     svr.Get("/driver/remove", remove_handler);
     svr.Post("/driver/remove", remove_handler);
 
+    int port = 8080;
+    if (const char* env_p = std::getenv("PORT")) {
+        port = std::stoi(env_p);
+    }
     {
         std::lock_guard<std::mutex> lock(console_mutex);
-        std::cout << "[HTTP] Server active on http://0.0.0.0:8080/state\n";
+        std::cout << "[HTTP] Server active on http://0.0.0.0:" << port << "/state\n";
     }
-    svr.listen("0.0.0.0", 8080);
+    svr.listen("0.0.0.0", port);
 }
 
 

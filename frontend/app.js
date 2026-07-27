@@ -7,7 +7,9 @@
 // --- Configuration and State Management ---
 const DEFAULT_CONFIG = {
   dataSource: 'live', // 'simulated' | 'live'
-  backendUrl: 'http://localhost:8080/state',
+  backendUrl: (typeof window !== 'undefined' && window.location.protocol.startsWith('http') && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1')
+    ? `${window.location.origin}/state`
+    : 'http://localhost:8080/state',
   pollInterval: 1000,
   gridCols: 12,
   gridRows: 12
