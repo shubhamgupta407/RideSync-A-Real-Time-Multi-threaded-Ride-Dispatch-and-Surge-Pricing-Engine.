@@ -1,18 +1,13 @@
-# RideSync 🚗⚡
+# RideSync
 
-RideSync is a real-time, multi-threaded ride dispatch and surge pricing engine. The project simulates a modern, cloud-native ride-hailing architecture (like Uber or Lyft) from scratch, coupling an autonomous C++17 backend with a high-performance 60 FPS vanilla JavaScript/CSS visualization dashboard.
+RideSync is a multithreaded ride dispatch and surge pricing engine built from scratch. The project simulates a core ride-hailing backend (similar to Uber or Lyft) using standalone C++17 worker threads, coupled with a real-time web dashboard to visualize vehicle movements and thread synchronization.
 
-### 🌐 Live Cloud Demo
-**Experience the live production application deployed on Render:**  
-👉 **[https://ridesync-dispatch-engine.onrender.com](https://ridesync-dispatch-engine.onrender.com)**
+Live Demo: https://ridesync-dispatch-engine.onrender.com  
+Architecture Blueprint: https://ridesync-dispatch-engine.onrender.com/architecture.html
 
----
+## System Architecture
 
-## 🏛️ System Architecture
-
-To ensure high throughput and realistic dispatch latency without CPU-heavy busy waiting, RideSync separates spatial presentation from concurrency logic across a clean HTTP REST pipeline.
-
-> **Note:** A dedicated, standalone systems engineering specification page with custom embedded SVG diagrams is included in the live app at **[`/architecture.html`](https://ridesync-dispatch-engine.onrender.com/architecture.html)**.
+To keep dispatch latency low and avoid CPU-heavy busy waiting, the spatial presentation layer is completely decoupled from the C++ concurrency engine over a lightweight HTTP REST pipeline.
 
 ### 1. System Topology & Data Flow
 ```mermaid
@@ -44,7 +39,7 @@ flowchart LR
 ```
 
 ### 2. Multithreaded Dispatch Concurrency Sequence
-When ride requests enter the system, they are processed asynchronously using condition variables (`std::condition_variable`) and mutex-protected spatial lookups to guarantee atomic vehicle assignment without data races:
+When ride requests enter the system, they are handled asynchronously using condition variables and mutex-protected spatial lookups to ensure atomic vehicle assignments without data races:
 
 ```mermaid
 sequenceDiagram
@@ -68,7 +63,7 @@ sequenceDiagram
 ```
 
 ### 3. Dynamic Surge Pricing State Machine
-The grid evaluates local zone density (Pending Requests vs. Available Drivers) in real time, automatically transitioning pricing tiers and rendering glowing radial overlays:
+The backend evaluates local zone density (pending requests vs. available drivers) in real time, adjusting pricing tiers and triggering visual heatmap overlays on the map:
 
 ```mermaid
 stateDiagram-v2
@@ -78,70 +73,64 @@ stateDiagram-v2
     state "Moderate Surge (1.5x)" as ModerateSurge
     state "High Surge (2.0x)" as HighSurge
     
-    NormalFare --> ModerateSurge: Demand exceeds supply by ≥ 1 (Yellow Radial Glow)
-    ModerateSurge --> HighSurge: Demand exceeds supply by ≥ 3 (Red Radial Heatmap)
-    HighSurge --> ModerateSurge: Automatic normalization as drivers enter zone
+    NormalFare --> ModerateSurge: Demand exceeds supply by ≥ 1 (Yellow Glow)
+    ModerateSurge --> HighSurge: Demand exceeds supply by ≥ 3 (Red Heatmap)
+    HighSurge --> ModerateSurge: Normalizes as drivers enter zone
     ModerateSurge --> NormalFare: Supply balances demand
 ```
 
----
+## Features
 
-## ✨ Key Features & Capabilities
+### Frontend Dashboard (`frontend/`)
+- Abstract 12x12 city grid styled with avenue road networks, dashed centerlines, and landmark markers (Central Park, Times Square, Financial District).
+- Smooth CSS vehicle animations with drop shadows, directional heading rotation, and motion trails.
+- Anti-overlap clustering algorithm that curves vehicle paths when multiple cars cross the same intersection so markers remain readable.
+- Real-time fleet controls to add or remove driver threads on the fly, pause the simulation, or trigger an engine restart.
+- Live console monitor streaming internal C++ mutex synchronization events (`LOCK driver_mutex`, `notify_one() sent`, `MATCH SUCCESS`) directly to the UI.
 
-### 🖥️ Frontend Dashboard (`frontend/`)
-- **Interactive 12×12 City Grid**: A Mapbox-styled abstract city map featuring avenue road networks, dashed centerlines, bridges, and building block shade variations.
-- **Dynamic 60 FPS Animations**: Renders top-down vehicle vectors with drop shadows, directional heading rotation, and smooth motion transition trails.
-- **Anti-Overlap Arc Clustering**: Automatically curves overlapping vehicle trajectories when cars share the same city intersection so labels never clip.
-- **Elevated Landmark Layers**: Features iconic landmarks (🌲 *Central Park*, 🌊 *East River Canal*, 🏢 *Financial District*, 🎭 *Midtown / Times Square*) on an elevated z-index so text remains 100% readable above traffic.
-- **Real-Time Fleet Scaling**: Live **`+ Add`** and **`− Remove`** buttons allow dynamically spawning or terminating autonomous C++ driver threads on the fly.
-- **Simulation Controls**: Includes a **🟢 Simulation: ON/OFF** toggle and a **🔄 Restart** button that calls the backend `/restart` API to instantly reset driver positions and trip queues.
-- **Live C++ Mutex Monitor**: Stream real-time thread synchronization logs (`LOCK driver_mutex`, `notify_one() sent`, `MATCH SUCCESS`) directly into the UI.
+### C++17 Backend Engine (`backend/`)
+- Uses `std::thread` to spawn independent OS threads for individual drivers, riders, and the dispatch coordinator.
+- Prevents data races across shared vehicle lists and request queues using RAII `std::lock_guard` and `std::mutex`.
+- Avoids CPU polling waste by sleeping worker threads via `std::condition_variable` until woken by new ride events.
+- Euclidean spatial matcher that scans available drivers and calculates shortest straight-line distances ($\sqrt{\Delta x^2 + \Delta y^2}$) to pick-up pins.
+- Standalone HTTP REST server implemented with `cpp-httplib` and `nlohmann/json`, serving live JSON state snapshots and API control endpoints.
 
-### ⚙️ C++17 Backend Engine (`backend/`)
-- **Native OS Multithreading**: Spawns standalone `std::thread` workers for drivers, riders, and the dispatch engine.
-- **Zero Data Races**: Protects all shared vehicle lists, ride queues, and console logs using `std::mutex` and RAII `std::lock_guard`.
-- **Condition Variables**: Avoids CPU-heavy busy-waiting loops by sleeping dispatcher threads via `cv.wait()` until woken by `cv.notify_one()`.
-- **Euclidean Spatial Matcher**: Calculates shortest straight-line distances ($\sqrt{\Delta x^2 + \Delta y^2}$) across the grid to assign optimal drivers.
-- **Embedded HTTP REST Server**: Powered by header-only `cpp-httplib` and `nlohmann/json`, serving atomic state snapshots and control endpoints (`/state`, `/driver/add`, `/driver/remove`, `/restart`).
+## Local Setup & Development
 
----
+### Using Docker
+The simplest way to run the full stack locally is with Docker:
 
-## 🚀 Getting Started & Local Setup
-
-### Option 1: Docker (Recommended)
-You can build and run the complete production container locally using Docker:
 ```bash
 docker build -t ridesync .
 docker run -p 8080:8080 ridesync
 ```
-Then open your browser and navigate to: `http://localhost:8080`
 
-### Option 2: Manual C++ Build
-If you prefer compiling the C++ engine directly on your machine:
+Once running, open your browser to `http://localhost:8080`.
+
+### Manual C++ Build
+To compile and run the backend manually without Docker:
+
 ```bash
-# 1. Compile C++ backend with C++17 and pthread optimization
+# 1. Compile C++ backend with pthread support
 cd backend
 g++ -std=c++17 -pthread -O2 main.cpp -o server
 
-# 2. Run the server (defaults to port 8080, or reads $PORT)
+# 2. Start the backend server (defaults to port 8080)
 ./server
 ```
-Once the server is running, open `frontend/index.html` in your web browser or serve it via any static server:
+
+With the server running, open `frontend/index.html` in your web browser or start a local static server:
+
 ```bash
 cd frontend
 python3 -m http.server 3000
 ```
 
----
-
-## 🗺️ Project Roadmap Status
-- [x] **Core Dispatch Engine**: Connect frontend directly to C++ backend via local HTTP REST API.
-- [x] **Spatial Matchmaking**: Build out Euclidean straight-line distance rider matching algorithm in C++.
-- [x] **Surge State Machine**: Implement real-time surge pricing logic and heatmaps based on zone density.
-- [x] **Interactive Visualization**: Build Mapbox-style stylized operations map with 60 FPS vehicle animations.
-- [x] **Live Fleet Control**: Real-time thread scaling (`+ Add` / `− Remove` drivers) and simulation reset controls.
-- [x] **Systems Engineering Docs**: Standalone `/architecture.html` blueprint with human-written specs and custom SVGs.
-- [x] **Cloud Production Deployment**: Dockerized and deployed live on Render cloud platform.
-
----
-*Built with C++17, Vanilla JavaScript, and CSS.*
+## Roadmap Status
+- [x] Connect frontend dashboard directly to C++ backend via local HTTP REST API
+- [x] Build out Euclidean straight-line distance matching algorithm in C++
+- [x] Implement dynamic surge pricing logic and heatmaps based on real-time zone density
+- [x] Create Mapbox-style abstract operations map with smooth car animations
+- [x] Implement live fleet thread scaling (`+ Add` / `- Remove`) and simulation reset controls
+- [x] Write standalone architecture engineering specification page (`/architecture.html`)
+- [x] Dockerize and deploy production build live on Render
