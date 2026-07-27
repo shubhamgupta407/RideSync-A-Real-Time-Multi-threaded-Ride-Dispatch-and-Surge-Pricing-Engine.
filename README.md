@@ -6,36 +6,73 @@ It's split into two main parts: a multi-threaded C++ backend that handles all th
 
 ## Architecture
 
-Here's a quick look at how the system is structured:
+To ensure high throughput and realistic dispatch latency without CPU-heavy busy waiting, RideSync separates spatial presentation from concurrency logic across an integrated HTTP pipeline:
 
+### 1. System Topology & Data Flow
 ```mermaid
-graph TD
-    classDef frontend fill:#3b82f6,stroke:#2563eb,stroke-width:2px,color:#fff,rx:8px
-    classDef backend fill:#10b981,stroke:#059669,stroke-width:2px,color:#fff,rx:8px
-    classDef thread fill:#f59e0b,stroke:#d97706,stroke-width:2px,color:#fff,rx:8px
-
-    subgraph Frontend
-        UI[City Grid UI]:::frontend
-        Feed[Live Activity Feed]:::frontend
-        Stats[Stats Panel]:::frontend
+flowchart LR
+    subgraph Client ["Frontend Dashboard (Vanilla JS / CSS)"]
+        UI["Mapbox-Style City Grid"]
+        Feed["Activity Stream & Logs"]
+        Stats["KPI Metrics Bar"]
     end
 
-    subgraph Backend
-        API[API Endpoint]:::backend
-        Match[Matching Engine]:::backend
-        Surge[Surge Pricing Module]:::backend
+    subgraph Server ["C++17 Multithreaded Engine (localhost:8081)"]
+        HTTP["HTTP Server (cpp-httplib)"]
+        State["Shared State Store (std::mutex)"]
         
-        subgraph Threads
-            T1[Driver Thread 1]:::thread
-            T2[Driver Thread 2]:::thread
-            T3[Driver Thread N]:::thread
+        subgraph Engine ["Core Dispatch Engine"]
+            Match["Euclidean Matcher"]
+            Surge["Surge Calculator"]
         end
     end
 
-    UI -->|Polls| API
-    API --> Match
-    Match <--> Threads
-    Match <--> Surge
+    UI -->|"GET /state (poll)"| HTTP
+    HTTP -->|"JSON Snapshot"| UI
+    HTTP <-->|"Lock & Read"| State
+    Match <-->|"Update Positions"| State
+    Surge <-->|"Update Multipliers"| State
+```
+
+### 2. Multithreaded Dispatch Concurrency Sequence
+When ride requests enter the system, they are processed asynchronously using condition variables and mutex-protected spatial lookups to guarantee atomic vehicle assignment:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Rider as Rider Request
+    participant Queue as Request Queue (condition_variable)
+    participant Dispatcher as Dispatcher Thread
+    participant Mutex as Fleet Mutex (std::mutex)
+    participant Driver as Driver Thread Pool
+
+    Rider->>Queue: Push Ride Request (x, y)
+    Note over Queue: notify_one() wakes dispatcher
+    Queue->>Dispatcher: Wake up & pop request
+    Dispatcher->>Mutex: lock_guard<mutex>
+    Dispatcher->>Driver: Scan Euclidean Distance √(Δx² + Δy²)
+    Driver-->>Dispatcher: Return nearest available driver
+    Dispatcher->>Driver: Atomically assign ride (status = BUSY)
+    Dispatcher->>Mutex: Unlock mutex
+    Driver->>Driver: Simulate trip progression
+    Driver->>Mutex: Trip complete (status = AVAILABLE)
+```
+
+### 3. Dynamic Surge Pricing State Machine
+The grid evaluates local zone density (Pending Requests vs. Available Drivers) in real time, automatically transitioning pricing tiers and rendering glowing radial overlays:
+
+```mermaid
+stateDiagram-v2
+    [*] --> NormalFare: Zone Initialized
+    
+    state "Normal Fare (1.0x)" as NormalFare
+    state "Moderate Surge (1.5x)" as ModerateSurge
+    state "High Surge (2.0x)" as HighSurge
+    
+    NormalFare --> ModerateSurge: Demand exceeds supply by ≥ 1
+    ModerateSurge --> HighSurge: Demand exceeds supply by ≥ 3
+    HighSurge --> ModerateSurge: More drivers enter zone
+    ModerateSurge --> NormalFare: Supply balances demand
 ```
 
 ## What's working right now
